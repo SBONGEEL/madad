@@ -1,0 +1,20 @@
+-- نزول 0009: عكس الترتيب.
+DROP FUNCTION emit_customer_order_events();
+DROP TABLE notifier_cursors;
+DROP FUNCTION notify_order_members(orders, text, text, text);
+DROP FUNCTION fee_preview(bigint, numeric);
+DROP TRIGGER b_notification ON notifications;
+DROP FUNCTION trg_notification_before();
+DROP TRIGGER b_dispute_media ON dispute_media;
+DROP FUNCTION trg_dispute_media_before();
+DROP INDEX dispute_open_per_item;
+DROP TRIGGER b_dispute_insert ON disputes;
+DROP FUNCTION trg_dispute_insert();
+DROP TRIGGER a_party_insert ON customers;
+DROP FUNCTION trg_party_insert();
+DROP TRIGGER b_media ON media_files;
+DROP FUNCTION trg_media_before();
+DROP FUNCTION media_owned(bigint);
+DROP FUNCTION customer_order_access(bigint);
+DROP VIEW v_customer_branches;
+DROP VIEW v_customer_orders;
