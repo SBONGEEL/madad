@@ -405,11 +405,12 @@ async def test_m16_fee_from_neighborhood_or_drawn_area(db, zone, area, fee):
     assert await db.fetchval("SELECT delivery_fee FROM orders WHERE id = $1", oid) == Decimal(fee)
 
 
-async def test_m16_conflict_stops_and_waits_for_the_owner(db):
+async def test_m16_conflict_uses_zone_fee_by_default(db):
     w = await build(db)
     await _by_zone(db, w, "10", "15")
     oid = await draft(db, w)
-    await raises(place(db, w, oid), "zone_conflict")
+    await place(db, w, oid)
+    assert await db.fetchval("SELECT delivery_fee FROM orders WHERE id = $1", oid) == Decimal("15")
 
 
 async def test_m16_point_in_polygon_both_ways(db):
