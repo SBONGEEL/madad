@@ -119,3 +119,13 @@
 .md-hscroll::-webkit-scrollbar { display: none; }
 .md-offline { background: var(--warning); color: var(--on-warning); text-align: center; font-size: var(--fs-13); padding: var(--s-6) var(--s-12); }
 .md-home-logo { height: 40px; display: block; }
+/* تطبيق السائق الداكن (DHeader): أرضية primary، والورقة البيضاء فوق الخريطة ثيم فاتح (data-theme="light") */
+.md-dheader { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--s-10); padding: var(--s-14) var(--s-16);
+  background: var(--page); color: var(--ink); }
+.md-dheader-logo { height: 38px; display: block; }
+.md-dheader-role { flex: 1; font-weight: 700; font-size: var(--fs-15); color: var(--secondary); }
+.md-dheader-title { flex: 1; font-weight: 700; font-size: var(--fs-19); }
+.md-dheader-back { width: 44px; height: 44px; color: var(--ink); }
+.md-btn-xl { min-height: 56px; font-size: var(--fs-18); }
+.md-sheet { background: var(--surface); color: var(--ink); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--s-16); display: flex; flex-direction: column; gap: var(--s-12); }
+.md-map-ground { background: var(--map-ground); border-radius: var(--radius-lg); overflow: hidden; }

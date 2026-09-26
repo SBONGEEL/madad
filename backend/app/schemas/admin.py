@@ -360,6 +360,10 @@ class AssignIn(BaseModel):
     route_km: Decimal = Field(ge=0, decimal_places=2)
 
 
+class RouteKmIn(BaseModel):
+    route_km: Decimal = Field(ge=0, decimal_places=2)
+
+
 class DisputeRowOut(Out):
     id: int
     order_id: int
@@ -819,3 +823,11 @@ class PayOfferOut(Out):
 
 class PayOfferDecisionIn(BaseModel):
     decision: str = Field(pattern="^(accept|reject)$")
+
+
+# ——— وثائق الاعتماد (الوثيقة الخاصة تُفتح بسجل) ————————————————————————————————————————
+class DocumentOut(Out):
+    purpose: str
+    media_id: int
+    mime_type: str
+    views: int

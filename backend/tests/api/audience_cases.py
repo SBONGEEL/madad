@@ -86,6 +86,7 @@ CASES = {
     ("GET", "/api/driver/settlements"): None,
     ("GET", "/api/driver/settlements.pdf"): None,
     ("GET", "/api/driver/wallet"): None,
+    ("PATCH", "/api/driver/batches/{batch_id}"): lambda live: {"next_eta_at": "2026-09-27T16:30:00+02:00"},
     ("POST", "/api/driver/batches/{batch_id}/deliver"): lambda live: {},
     ("POST", "/api/driver/batches/{batch_id}/depart"): lambda live: {},
     ("POST", "/api/driver/batches/{batch_id}/notify"): lambda live: {},

@@ -1,5 +1,5 @@
 /** الإسناد: طلبية مؤكَّدة مخططها مكتمل ← سائق متاح (مع طول المسار لأجر المعادلة)، وفكّ الإسناد قبل بدء الجمع. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { qs } from "@ui/client";
@@ -109,6 +109,7 @@ export function Assign() {
             </div>
           ) : null}
 
+          {id && o?.status === "confirmed" ? <RouteKm orderId={id} km={detail.data?.route_km ?? null} onSaved={(v) => detail.set(v)} /> : null}
           {id && o?.status === "confirmed" ? <FareOffers orderId={id} onAssigned={() => { detail.reload(); waiting.reload(); assigned.reload(); drivers.reload(); }} /> : null}
 
           <Section title="تنتظر الإسناد">
@@ -184,6 +185,31 @@ function FareOffers({ orderId, onAssigned }: { orderId: number; onAssigned: () =
       <ConfirmDialog open={!!accepting} title={<>إسناد الطلبية <Num>#{orderId}</Num> إلى {accepting?.driver_name}</>}
         body={<>بأجرته المطلوبة <Money value={accepting?.amount} /> بدل أجر المعادلة. تُسحب عروض السائقين الآخرين.</>}
         confirmLabel="قبول وإسناد" loading={act.busy} onConfirm={() => accepting && void decide(accepting, "accept")} onCancel={() => setAccepting(null)} />
+    </Section>
+  );
+}
+
+/** طول المسار قبل الإسناد (م-18): به يظهر أجر المعادلة للسائقين فيقبلون الطلبية بأنفسهم. */
+function RouteKm({ orderId, km, onSaved }: { orderId: number; km: string | null; onSaved: (v: OrderDetailOut) => void }) {
+  const act = useAction();
+  const [value, setValue] = useState(km ?? "");
+  useEffect(() => setValue(km ?? ""), [km, orderId]);
+  const ok = KM.test(value.trim());
+  async function save() {
+    const v = await act.run(() => api.put<OrderDetailOut>(`/api/admin/orders/${orderId}/route-km`, { route_km: value.trim() }),
+      "حُفظ طول المسار؛ الطلبية ظاهرة للسائقين بأجرها");
+    if (v) onSaved(v);
+  }
+  return (
+    <Section title="طول المسار">
+      <span className="text-13 text-ink-muted">
+        {km == null ? "بلا طول مسار لا يظهر أجر المعادلة للسائقين ولا يقبلون الطلبية بأنفسهم." : "يُحسب به أجر المعادلة، ويظهر للسائقين المتاحين."}
+      </span>
+      <div className="flex gap-2 items-end">
+        <TextField className="flex-1" label="الكيلومترات" value={value} onChange={setValue} numeric suffix="كم"
+          error={value && !ok ? "رقم بخانتين عشريتين على الأكثر" : null} />
+        <Button size="sm" loading={act.busy} disabled={!ok || value.trim() === (km ?? "")} onClick={save}>حفظ</Button>
+      </div>
     </Section>
   );
 }

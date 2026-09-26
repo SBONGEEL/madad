@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 
 import * as fmt from "@ui/fmt";
-import { Button, ConfirmDialog, cx, EmptyState, ErrorState, LoadingState, Num, Option, PageHead, StatusBadge,
+import { Button, ConfirmDialog, cx, Dialog, EmptyState, ErrorState, Icon, LoadingState, Num, Option, PageHead, StatusBadge,
   useAction, useLoad, type Tone } from "@ui/kit";
 import { api } from "@/api/client";
-import type { ApprovalIn, PendingOut, ProposalOut } from "@/api/types";
+import type { ApprovalIn, DocumentOut, PendingOut, ProposalOut } from "@/api/types";
+import { openDocument } from "@/lib/admin-media";
 import { CYCLE, PAY_METHOD } from "@/lib/commerce-shared";
 import { useSession } from "@/session";
 
@@ -208,10 +209,55 @@ function Details({ e }: { e: Entry }) {
     else rows.push(["عنوان الفرع", p.detail]);
   }
   return (
-    <div className="grid grid-cols-2 gap-3 text-14">
-      {rows.map(([k, v]) => (
-        <div key={k} className="flex flex-col gap-0.5"><span className="text-ink-muted">{k}</span><span className="font-medium">{v}</span></div>
-      ))}
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-3 text-14">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex flex-col gap-0.5"><span className="text-ink-muted">{k}</span><span className="font-medium">{v}</span></div>
+        ))}
+      </div>
+      {e.pending && e.pending.kind !== "branch" ? <Documents kind={e.pending.kind} id={e.pending.id} /> : null}
+    </div>
+  );
+}
+
+const DOC: Record<string, string> = {
+  facade: "صورة الواجهة", commercial_register: "السجل التجاري", owner_id: "هوية المالك", driver_id: "الهوية",
+  driver_license: "الرخصة — الوجه", driver_license_back: "الرخصة — الظهر", driver_photo: "الصورة الشخصية",
+};
+
+/** وثائق الطرف: كل فتح يُسجَّل بمن فتحه ومتى (الترحيلة 0013). */
+function Documents({ kind, id }: { kind: string; id: number }) {
+  const docs = useLoad(() => api.get<DocumentOut[]>(`/api/admin/approvals/${kind}/${id}/documents`), [kind, id]);
+  const act = useAction();
+  const [shown, setShown] = useState<{ url: string; title: string; pdf: boolean } | null>(null);
+  useEffect(() => () => { if (shown) URL.revokeObjectURL(shown.url); }, [shown]);
+  if (!docs.data?.length) return null;
+  async function show(d: DocumentOut) {
+    const url = await act.run(() => openDocument(d.media_id));
+    if (url) {
+      setShown({ url, title: DOC[d.purpose] ?? d.purpose, pdf: d.mime_type === "application/pdf" });
+      docs.reload();
+    }
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-13 text-ink-muted">الوثائق — كل فتح يُسجَّل باسمك</span>
+      <div className="grid grid-cols-2 gap-2">
+        {docs.data.map((d) => (
+          <button key={`${d.purpose}-${d.media_id}`} type="button" className="md-row-link justify-between cursor-pointer border-0"
+            disabled={act.busy} onClick={() => void show(d)}>
+            <span className="flex items-center gap-2"><Icon name={d.mime_type === "application/pdf" ? "file-text" : "camera"} size={18} />{DOC[d.purpose] ?? d.purpose}</span>
+            <span className="text-12 text-ink-muted">{d.views ? <>فُتحت <Num>{d.views}</Num></> : "لم تُفتح"}</span>
+          </button>
+        ))}
+      </div>
+      <Dialog open={!!shown} onClose={() => setShown(null)} wide label={shown?.title}>
+        <div className="md-dialog-title">{shown?.title}</div>
+        {shown ? (shown.pdf
+          ? <a className="md-link" href={shown.url} target="_blank" rel="noreferrer">فتح الملف في نافذة جديدة</a>
+          : <img src={shown.url} alt={shown.title} className="w-full h-auto rounded-md" />) : null}
+        <div className="md-dialog-actions"><Button variant="ghost" block onClick={() => setShown(null)}>إغلاق</Button></div>
+      </Dialog>
     </div>
   );
 }

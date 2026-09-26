@@ -81,6 +81,7 @@ class DriverOut(Out):
     pay_method: str | None
     vehicle: str
     capacity_kg: Decimal | None
+    phone: str
     city_name: str
     documents_complete: bool   # قرار المالك 27/09: حالة الأوراق وحدها، بلا صورها
 
@@ -202,6 +203,11 @@ class BatchLineIn(BaseModel):
 
 class BatchIn(BaseModel):
     lines: list[BatchLineIn] = Field(min_length=1)
+    eta_at: datetime | None = None
+    next_eta_at: datetime | None = None
+
+
+class BatchTimesIn(BaseModel):
     eta_at: datetime | None = None
     next_eta_at: datetime | None = None
 

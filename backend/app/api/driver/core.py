@@ -22,8 +22,9 @@ router = APIRouter()
 
 DRIVER_SQL = """
 SELECT d.id, d.full_name, d.status::text AS status, d.pay_method::text AS pay_method, d.vehicle::text AS vehicle,
-       d.capacity_kg, ci.name_ar AS city_name, d.city,
-       (d.id_media_id IS NOT NULL AND d.license_media_id IS NOT NULL AND d.photo_media_id IS NOT NULL) AS documents_complete
+       d.capacity_kg, d.phone, ci.name_ar AS city_name, d.city,
+       (d.id_media_id IS NOT NULL AND d.license_media_id IS NOT NULL AND d.license_back_media_id IS NOT NULL
+        AND d.photo_media_id IS NOT NULL) AS documents_complete
   FROM drivers d JOIN cities ci ON ci.code = d.city WHERE d.user_id = :u"""
 
 

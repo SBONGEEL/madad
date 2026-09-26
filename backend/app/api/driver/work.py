@@ -16,7 +16,7 @@ from app.api.driver.core import driver
 from app.core.db import Tx
 from app.core.errors import ApiError
 from app.schemas.common import HandoverOut
-from app.schemas.driver import (AvailableOut, BatchIn, BatchOut, CodeIn, ConfirmStopIn, CustodyItemOut, DisputeIn,
+from app.schemas.driver import (AvailableOut, BatchIn, BatchTimesIn, BatchOut, CodeIn, ConfirmStopIn, CustodyItemOut, DisputeIn,
                                 DisputeOut, ItemOut, Order2Out, Order2SummaryOut, OrderOut, PayOfferIn, StopLineOut,
                                 StopOut)
 from app.services import documents
@@ -196,6 +196,17 @@ async def new_batch(order_id: int, body: BatchIn, request: Request, p: Principal
             await t.run("INSERT INTO order_batch_lines (batch_id, order_item_id, qty) VALUES (:b, :i, :q)",
                         b=bid, i=ln.order_item_id, q=ln.qty)
         return await load_order2(t, d, order_id)
+
+
+@router.patch("/batches/{batch_id}", response_model=Order2Out)
+async def batch_times(batch_id: int, body: BatchTimesIn, request: Request, p: Principal = Depends(driver_user)) -> Order2Out:
+    """موعد الدفعة وموعد ما يصل لاحقاً ما دامت لم تُرسَل (القاعدة تثبّتهما بعد الإشعار: batch_notice_sent_is_immutable)."""
+    async with request.app.state.db.tx("driver", p.user_id) as t:
+        d = await driver(t, p.user_id)
+        oid = await _batch_order(t, d, batch_id)
+        await t.run("UPDATE order_batches SET eta_at = :e, next_eta_at = :n WHERE id = :b",
+                    e=body.eta_at, n=body.next_eta_at, b=batch_id)
+        return await load_order2(t, d, oid)
 
 
 async def _batch_step(request: Request, p: Principal, batch_id: int, status: str) -> Order2Out:

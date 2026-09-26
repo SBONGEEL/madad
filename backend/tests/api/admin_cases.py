@@ -20,7 +20,7 @@ async def path_ids(db, live) -> dict:
             "dispute_id": await _dispute(db, live),
             "warehouse_id": await db.fetchval("INSERT INTO warehouses (city, name, lat, lng, address_text) "
                                               "VALUES ('TIP', 'الظهرة', 32.89, 13.18, 'الظهرة') RETURNING id"),
-            "kind": "customer", "party_id": w.customer, "custody_id": 0, "pay_offer_id": 0,
+            "kind": "customer", "party_id": w.customer, "custody_id": 0, "pay_offer_id": 0, "media_id": w.media,
             "notification_id": await db.fetchval("INSERT INTO notifications (user_id, kind, title, body) VALUES ($1, "
                                                  "'broadcast', 't', 'b') RETURNING id", w.owner),
             "zone_id": await db.fetchval("INSERT INTO delivery_zones (city, name_ar, fee) VALUES ('TIP', 'قرقارش', 10) RETURNING id"),
@@ -62,6 +62,7 @@ WRITES = {
     ("PATCH", "/api/admin/plan/lines/{line_id}"): lambda ids: {"qty": "1"},
     ("DELETE", "/api/admin/plan/lines/{line_id}"): lambda ids: None,
     ("POST", "/api/admin/orders/{order_id}/assign"): lambda ids: {"driver_id": ids["driver_id"], "route_km": "5"},
+    ("PUT", "/api/admin/orders/{order_id}/route-km"): lambda ids: {"route_km": "10"},
     ("POST", "/api/admin/orders/{order_id}/unassign"): lambda ids: {},
     ("POST", "/api/admin/disputes/{dispute_id}/resolve"): lambda ids: {"resolution": "no_action"},
     ("POST", "/api/admin/pay-offers/{pay_offer_id}/decide"): lambda ids: {"decision": "reject"},
@@ -78,6 +79,7 @@ WRITES = {
                                                                               "qty": "1", "unit_cost": "5"},
     # الاعتمادات والعملاء والمستخدمون والإشعارات والإعدادات والمناطق
     ("POST", "/api/admin/approvals/{kind}/{party_id}"): lambda ids: {"decision": "approve"},
+    ("POST", "/api/admin/media/{media_id}/open"): lambda ids: {},
     ("PUT", "/api/admin/customers/{customer_id}/purchaser-mode"): lambda ids: {"purchaser_mode": "direct"},
     ("POST", "/api/admin/admins"): lambda ids: {"phone": "+218910000099", "full_name": "x"},
     ("PUT", "/api/admin/admins/{user_id}/permissions"): lambda ids: {"permissions": []},

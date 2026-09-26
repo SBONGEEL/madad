@@ -11,7 +11,7 @@ from app.api.admin.common import P, city, sees_costs
 from app.api.deps import Principal, admin_user
 from app.core.db import Tx
 from app.core.errors import ApiError
-from app.schemas.admin import (AssignIn, PayOfferDecisionIn, PayOfferOut, CancelIn, DisputeDetailOut, DisputeRowOut, DriverChoiceOut, OrderDetailOut,
+from app.schemas.admin import (AssignIn, RouteKmIn, PayOfferDecisionIn, PayOfferOut, CancelIn, DisputeDetailOut, DisputeRowOut, DriverChoiceOut, OrderDetailOut,
                                OrderLineAdminOut, OrderRowOut, PlanLineIn, PlanLineOut, PlanOut, PlanStopOut, QtyIn,
                                ResolveIn, StatusEventOut)
 
@@ -171,6 +171,15 @@ async def assign(order_id: int, body: AssignIn, request: Request, p: Principal =
     async with request.app.state.db.tx("admin", p.user_id) as t:
         await t.run("UPDATE orders SET route_km = :k WHERE id = :o", k=body.route_km, o=order_id)
         await t.run("UPDATE orders SET status = 'assigned', driver_id = :d WHERE id = :o", d=body.driver_id, o=order_id)
+        return await _detail(t, order_id)
+
+
+@router.put("/orders/{order_id}/route-km", response_model=OrderDetailOut, **P("orders"))
+async def route_km(order_id: int, body: RouteKmIn, request: Request, p: Principal = Depends(admin_user)) -> OrderDetailOut:
+    """طول المسار قبل الإسناد: به يُحسب أجر المعادلة ويظهر للسائقين فيقبلون الطلبية بأنفسهم (م-18).
+    القاعدة لا تسمح بكتابته لغير اللوحة (forbidden_role: route_km)."""
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        await t.run("UPDATE orders SET route_km = :k WHERE id = :o", k=body.route_km, o=order_id)
         return await _detail(t, order_id)
 
 

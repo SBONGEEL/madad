@@ -216,3 +216,33 @@ async def test_assignment_by_owner_and_settlement_notify_the_driver(db, client):
     assert await db.fetchval("SELECT emit_driver_events()") == 1
     kinds = [n["kind"] for n in (await client.get("/api/driver/notifications", headers=H(tok))).json()]
     assert kinds == ["order_assigned"]
+
+
+async def test_planned_batch_times_are_editable_until_notified(db, client):
+    """دفعة أُنشئت بلا موعد لما بعدها لا تعلق: يُكتب الموعد ثم يُرسل الإشعار؛ وبعده يثبت."""
+    w, oid, tok, o = await _accepted(db, client)
+    stop = o["stops"][0]
+    code = await db.fetchval("SELECT supplier_code FROM pickup_stops WHERE id = $1", stop["id"])
+    await client.post(f"/api/driver/stops/{stop['id']}/code", headers=H(tok), json={"code": code})
+    line = stop["lines"][0]
+    o = (await client.post(f"/api/driver/stops/{stop['id']}/confirm", headers=H(tok),
+                           json={"lines": [{"line_id": line["id"], "collected_qty": line["planned_qty"]}]})).json()
+    item = o["items"][0]["id"]
+    b = (await client.post(f"/api/driver/orders/{oid}/batches", headers=H(tok),
+                           json={"lines": [{"order_item_id": item, "qty": "1"}]})).json()["batches"][0]
+    stuck = await client.post(f"/api/driver/batches/{b['id']}/notify", headers=H(tok))
+    assert stuck.status_code == 409 and stuck.json()["code"] == "batch_notice_needs_later_eta"
+    fixed = await client.patch(f"/api/driver/batches/{b['id']}", headers=H(tok), json={"next_eta_at": "2026-09-27T16:30:00+02:00"})
+    assert fixed.status_code == 200 and fixed.json()["batches"][0]["next_eta_at"] is not None
+    assert (await client.post(f"/api/driver/batches/{b['id']}/notify", headers=H(tok))).status_code == 200
+    late = await client.patch(f"/api/driver/batches/{b['id']}", headers=H(tok), json={"next_eta_at": "2026-09-27T18:00:00+02:00"})
+    assert late.status_code == 409 and late.json()["code"] == "batch_notice_sent_is_immutable"
+
+
+async def test_owner_sets_route_km_then_the_driver_sees_the_estimate(db, client):
+    """م-18: بلا طول مسار لا أجر تقديري ولا قبول؛ اللوحة تكتبه فيظهر الأجر ويقبل السائق."""
+    w, oid, tok, adm = await _confirmed(db, client, km=None)
+    r = await client.put(f"/api/admin/orders/{oid}/route-km", headers=H(adm), json={"route_km": "14.2"})
+    assert r.status_code == 200
+    assert (await client.get("/api/driver/available", headers=H(tok))).json()[0]["pay_estimate"] == "14.100"
+    assert (await client.post(f"/api/driver/orders/{oid}/accept", headers=H(tok))).status_code == 200

@@ -444,6 +444,16 @@ Push لكل الأجناس + بديل SMS لما هو حرج (OTP، دفعة ف�
 | الاعتماد قبل العمل | الطلب والعرض والإسناد ترفض طرفاً غير معتمد؛ تغيير حالة الاعتماد يحتاج صلاحية `approvals` |
 | الصرف الدوري للمورد | قيد `payout_cycle_on_approval` |
 | موقع الاستلام من مواقع المورد نفسه | مفتاح أجنبي مركّب |
+| م-9 في القراءة (أُضيف 2026-09-27، 0009) | `v_customer_orders` و`v_customer_branches` و`customer_order_access`: المسؤول فرعه وحده، وطلبية فرع آخر `forbidden_branch` |
+| طرف جديد يبدأ «بانتظار الاعتماد» ووثائقه له (0009–0012) | `a_party_insert` على العملاء والموردين والسائقين؛ `media_owned`؛ الرخصة بوجهيها للسائق المسجِّل من تطبيقه |
+| النزاع لعضو منشأة الطلبية أو سائقها، مفتوحاً بلا قرار (0009) | `b_dispute_insert`، ونزاع مفتوح واحد لكل صنف `dispute_open_per_item` |
+| الإشعار يعلّمه صاحبه وحده (0009) | `b_notification`: لا يتغير غير `read_at` |
+| صفوف المورد وحده (0010) | `v_supplier_offers` · `v_supplier_locations` · `v_supplier_received` · `v_supplier_payouts` · `supplier_own_due`؛ لا يُعطَّل موقع عليه عروض (`location_in_use`) |
+| عرض على صنف مقترح يبقى موقوفاً حتى الاعتماد (0012، لوحة «إضافة عرض») | `c_offer_on_proposed` |
+| أوقات الدفعة لا ترجع إلى الخلف (0011) | `trg_batch_before`: الانطلاق ≥ الإشعار، والتسليم ≥ الانطلاق، ولو رجعت ساعة الخادم |
+| صفوف السائق وحده (0012) | `v_driver_available` (الأجر التقديري بصيغة الإسناد) · `v_driver_order_items` · `driver_own_balances` · `v_driver_settlements` |
+| فتح وثيقة خاصة مسجَّل (0013) | `media_views` إلحاق فقط، يكتبه فتح اللوحة وحده |
+| إشعارات §7 الدنيا (0009، 0010، 0012) | `emit_customer_order_events` · `emit_supplier_events` · `emit_driver_events` بمؤشرات `notifier_cursors`، يستدعيها عامل دوري |
 
 ### القيود الدفترية
 | الحدث | مدين | دائن |

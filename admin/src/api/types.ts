@@ -300,6 +300,13 @@ export interface DisputeRowOut {
   description: string;
 }
 
+export interface DocumentOut {
+  purpose: string;
+  media_id: number;
+  mime_type: string;
+  views: number;
+}
+
 export interface DriverChoiceOut {
   id: number;
   full_name: string;
@@ -602,6 +609,10 @@ export interface ResolveIn {
   loss_supplier_id?: number | null;
   loss_driver_id?: number | null;
   note?: string | null;
+}
+
+export interface RouteKmIn {
+  route_km: number | string;
 }
 
 export interface SettingsIn {

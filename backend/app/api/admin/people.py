@@ -3,14 +3,14 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 
 from app.api.admin.common import P, city, sees_costs
 from app.api.admin.orders import ORDER_SQL
 from app.api.deps import Principal, admin_user
 from app.core.db import Tx
 from app.core.errors import ApiError
-from app.schemas.admin import (AdminInviteIn, AdminUserOut, ApprovalIn, AuditOut, BranchOut, BroadcastIn, BroadcastOut,
+from app.schemas.admin import (AdminInviteIn, AdminUserOut, ApprovalIn, AuditOut, BranchOut, BroadcastIn, BroadcastOut, DocumentOut,
                                CustomerDetailOut, CustomerRowOut, DashboardOut, InboxOut, MemberOut, OrderRowOut,
                                PendingOut, PermissionsIn, PurchaserModeIn)
 
@@ -89,6 +89,30 @@ async def decide(kind: str, party_id: int, body: ApprovalIn, request: Request, p
         if not done:
             raise ApiError(409, "not_pending")
     return await approvals(request, p)
+
+
+@router.get("/approvals/{kind}/{party_id}/documents", response_model=list[DocumentOut], **P("approvals"))
+async def documents(kind: str, party_id: int, request: Request, p: Principal = Depends(admin_user)) -> list[DocumentOut]:
+    """وثائق الطرف لقرار اعتماده: نوعها وعدد مرات فتحها — والملف نفسه عبر «فتح» المسجَّل."""
+    if kind not in ("customer", "supplier", "driver"):
+        raise ApiError(404, "kind_unknown")
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        rows = await t.all("SELECT d.purpose, d.media_id, d.mime_type, (SELECT count(*) FROM media_views v "
+                           "WHERE v.media_id = d.media_id) AS views FROM party_documents(:k, :i) d", k=kind, i=party_id)
+    return [DocumentOut(**r) for r in rows]
+
+
+@router.post("/media/{media_id}/open", response_class=Response, responses={200: {"content": {"image/*": {}}}},
+             **P("approvals"))
+async def open_media(media_id: int, request: Request, p: Principal = Depends(admin_user)) -> Response:
+    """فتح وثيقة خاصة: يُسجَّل الفتح بمن فتحها ومتى (media_views، إلحاق فقط) ثم يُرسل الملف."""
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        row = await t.one("SELECT storage_key, mime_type FROM media_files WHERE id = :i", i=media_id)
+        if row is None:
+            raise ApiError(404, "media_not_found")
+        await t.run("INSERT INTO media_views (media_id, viewed_by) VALUES (:i, 0)", i=media_id)
+        data = request.app.state.media.get(row["storage_key"])
+    return Response(data, media_type=row["mime_type"], headers={"Cache-Control": "no-store"})
 
 
 # ——— العملاء وفروعهم (م-8، م-9) ————————————————————————————————————————————————

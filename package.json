@@ -4,6 +4,7 @@
   "workspaces": [
     "admin",
     "customer",
-    "supplier"
+    "supplier",
+    "driver"
   ]
 }
