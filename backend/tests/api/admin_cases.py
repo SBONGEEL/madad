@@ -17,7 +17,9 @@ async def path_ids(db, live) -> dict:
             "order_item_id": await db.fetchval("SELECT id FROM order_items WHERE order_id = $1", live.order),
             "line_id": await db.fetchval("SELECT l.id FROM pickup_stop_lines l JOIN pickup_stops s ON s.id = l.stop_id "
                                          "WHERE s.order_id = $1 LIMIT 1", live.order),
-            "dispute_id": await _dispute(db, live)}
+            "dispute_id": await _dispute(db, live),
+            "warehouse_id": await db.fetchval("INSERT INTO warehouses (city, name, lat, lng, address_text) "
+                                              "VALUES ('TIP', 'الظهرة', 32.89, 13.18, 'الظهرة') RETURNING id")}
 
 
 async def _dispute(db, live) -> int:
@@ -56,4 +58,15 @@ WRITES = {
     ("POST", "/api/admin/orders/{order_id}/assign"): lambda ids: {"driver_id": ids["driver_id"], "route_km": "5"},
     ("POST", "/api/admin/orders/{order_id}/unassign"): lambda ids: {},
     ("POST", "/api/admin/disputes/{dispute_id}/resolve"): lambda ids: {"resolution": "no_action"},
+    # المال والمخازن
+    ("POST", "/api/admin/drivers/{driver_id}/handover"): lambda ids: {"amount": "1"},
+    ("POST", "/api/admin/drivers/{driver_id}/payout"): lambda ids: {"amount": "1"},
+    ("PUT", "/api/admin/drivers/{driver_id}/pay-method"): lambda ids: {"pay_method": "periodic"},
+    ("POST", "/api/admin/suppliers/{supplier_id}/payout"): lambda ids: {"amount": "1", "period_start": "2026-09-01",
+                                                                         "period_end": "2026-09-26"},
+    ("POST", "/api/admin/expenses"): lambda ids: {"category": "x", "amount": "1", "spent_on": "2026-09-26"},
+    ("POST", "/api/admin/withdrawals"): lambda ids: {"amount": "1", "occurred_on": "2026-09-26", "note": "x"},
+    ("POST", "/api/admin/warehouses"): lambda ids: {"name": "b", "lat": "32.9", "lng": "13.1", "address_text": "x"},
+    ("POST", "/api/admin/warehouses/{warehouse_id}/movements"): lambda ids: {"kind": "intake", "item_id": ids["item_id"],
+                                                                              "qty": "1", "unit_cost": "5"},
 }

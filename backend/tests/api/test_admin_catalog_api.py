@@ -16,6 +16,7 @@ async def test_catalog_lists_items_with_costs_for_owner_only(db, client):
     live = await live_world(db, client)
     sup = (await supervisors(db, client))[SUP_ALL]
     owner = (await client.get("/api/admin/catalog", headers=live.auth("admin"))).json()
+    assert isinstance(owner, list), owner
     assert owner[0]["margin_value"] == str(MARGIN_CANARY) and owner[0]["mode"] == "margin_pct"
     hidden = (await client.get("/api/admin/catalog", headers=sup)).json()
     assert hidden[0]["id"] == live.w.item

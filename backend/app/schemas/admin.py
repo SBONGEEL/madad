@@ -370,3 +370,154 @@ class ResolveIn(BaseModel):
     loss_supplier_id: int | None = None
     loss_driver_id: int | None = None
     note: str | None = Field(default=None, max_length=500)
+
+
+# ——— المال: الدفتر والتسويات والصرف والربح والسحوبات ————————————————————————————
+class AccountOut(Out):
+    id: int
+    kind: str
+    party: str | None
+    balance: Money
+
+
+class EntryOut(Out):
+    account: str
+    amount: Money
+
+
+class TxnOut(Out):
+    id: int
+    kind: str
+    memo: str
+    order_id: int | None
+    branch: str | None
+    occurred_at: datetime
+    actor: str
+    entries: list[EntryOut]
+
+
+class DriverSettleOut(Out):
+    id: int
+    full_name: str
+    pay_method: str | None
+    cash_held: Money
+    wallet_owed: Money
+    cash_cap: Money | None
+    over_cap: bool
+
+
+class HandoverIn(BaseModel):
+    amount: Decimal = Field(gt=0, decimal_places=3)
+    wallet_offset: Decimal = Field(default=Decimal(0), ge=0, decimal_places=3)
+    note: str | None = Field(default=None, max_length=300)
+
+
+class PayoutIn(BaseModel):
+    amount: Decimal = Field(gt=0, decimal_places=3)
+    note: str | None = Field(default=None, max_length=300)
+
+
+class PayMethodIn(BaseModel):
+    pay_method: str = Field(pattern="^(offset_on_settlement|periodic)$")
+
+
+class SupplierDueOut(Out):
+    id: int
+    name: str
+    payout_cycle: str | None
+    payable: Money
+    last_payout: datetime | None
+
+
+class SupplierPayoutIn(BaseModel):
+    amount: Decimal = Field(gt=0, decimal_places=3)
+    period_start: date
+    period_end: date
+
+
+class ProfitLineOut(Out):
+    key: str
+    qty: Qty | None
+    sales: Money
+    cost: Money
+    gross: Money
+
+
+class ProfitOut(Out):
+    date_from: date
+    date_to: date
+    sales: Money
+    cost: Money
+    driver_pay: Money
+    expenses: Money
+    profit: Money
+    cogs_periods: list[dict]
+    by: str
+    lines: list[ProfitLineOut]
+
+
+class WithdrawalOut(Out):
+    id: int
+    amount: Money
+    occurred_on: date
+    note: str
+    created_by_name: str
+    created_at: datetime
+
+
+class WithdrawalsOut(Out):
+    treasury: Money
+    drawings_total: Money
+    entries: list[WithdrawalOut]
+
+
+class WithdrawalIn(BaseModel):
+    amount: Decimal = Field(gt=0, decimal_places=3)
+    occurred_on: date
+    note: str = Field(min_length=1, max_length=300)
+
+
+class ExpenseIn(BaseModel):
+    category: str = Field(min_length=1, max_length=80)
+    amount: Decimal = Field(gt=0, decimal_places=3)
+    spent_on: date
+    note: str | None = Field(default=None, max_length=300)
+
+
+# ——— المخازن ——————————————————————————————————————————————————————————————
+class StockOut(CostAware):
+    COST_FIELDS = ("avg_cost", "value")
+    warehouse_id: int
+    warehouse: str
+    item_id: int
+    item: str
+    on_hand: Qty
+    reserved: Qty
+    available: Qty
+    avg_cost: Money | None = None
+    value: Money | None = None
+
+
+class WarehouseOut(Out):
+    id: int
+    name: str
+    address_text: str
+    active: bool
+    items: int
+
+
+class WarehouseIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    lat: Decimal
+    lng: Decimal
+    address_text: str = Field(min_length=1, max_length=200)
+
+
+class MovementIn(BaseModel):
+    kind: str = Field(pattern="^(intake|count_adjust|transfer)$")
+    item_id: int
+    qty: Decimal = Field(decimal_places=3)
+    unit_cost: Decimal | None = Field(default=None, gt=0, decimal_places=3)
+    supplier_id: int | None = None
+    to_warehouse_id: int | None = None
+    note: str | None = Field(default=None, max_length=300)
