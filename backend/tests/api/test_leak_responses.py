@@ -16,18 +16,13 @@ import io
 from pypdf import PdfReader
 
 from app.services import pdf
+from tests.api.audience_cases import WRITE_CASES, _path  # استثناء 7: الحالات هناك
 from tests.api.routing import AUDIENCE_PREFIXES, operations
 from tests.api.world_api import live_world
 from tests.db.test_isolation import COST_CANARIES, SUPPLIER_FORBIDDEN, leaks
 
 FORBIDDEN = {"customer": COST_CANARIES, "driver": COST_CANARIES, "supplier": SUPPLIER_FORBIDDEN}
 
-# عمليات الكتابة: جسم معلوم لكل واحدة، فتُستدعى وتُفحص استجابتها أيضاً.
-# ما ليس هنا ولا GET → يسقط الحارس باسمه.
-WRITE_CASES = {
-    ("POST", "/api/supplier/pickups/{stop_id}/scan"): lambda live: {"code": "000000"},
-    ("POST", "/api/driver/stops/{stop_id}/code"): lambda live: {"code": "000000"},
-}
 
 
 def pdf_text(data: bytes) -> str:
@@ -41,10 +36,6 @@ def body_text(response) -> str:
     if response.headers.get("content-type", "").startswith("application/pdf"):
         return pdf_text(response.content)
     return response.text
-
-
-def _path(path: str, live) -> str:
-    return path.format(order_id=live.order, stop_id=live.stop)
 
 
 async def test_positive_witness_json_scanner_sees_costs_in_admin(db, client):

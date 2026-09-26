@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     # إرسال الرمز (م-24): «channels» = القنوات الثلاث بترتيب المالك (الافتراضي)؛
     # «console» = الرمز في السجل، للتطوير والاختبار وحده ويستحيل على الإنتاج؛ "" = معطّل.
     otp_sender: str = "channels"
+    # الوسائط (§2.1 «خدمة رفع واحدة»): مجلد محلي في الإصدار الأول — حجم في الإنتاج خارج الحاوية.
+    # الخدمة خلف واجهة واحدة (app/services/media.py) فيُستبدل المخزن دون لمس النقاط.
+    media_dir: str = "storage/media"
+    # العامل الدوري للإشعارات (ثوانٍ). 0 = معطّل؛ الاختبارات تستدعي الدالة مباشرة.
+    notifier_interval: float = 15.0
 
     @model_validator(mode="after")
     def _no_console_in_production(self) -> "Settings":

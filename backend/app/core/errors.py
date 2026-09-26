@@ -36,6 +36,13 @@ def _db_parts(exc: DBAPIError) -> tuple[str | None, str]:
     return sqlstate, message
 
 
+def db_code(exc: DBAPIError) -> str:
+    """رمز القاعدة المسمّى لخطأ يُعرض ولا يُسقط الطلب (معاينة رسم التوصيل مثلاً)."""
+    constraint = getattr(getattr(exc.orig, "__cause__", None), "constraint_name", None)
+    m = _CODE.match(_db_parts(exc)[1])
+    return constraint or (m.group(1) if m else "db_error")
+
+
 def install(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def _api(_: Request, exc: ApiError) -> JSONResponse:
