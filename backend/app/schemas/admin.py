@@ -4,8 +4,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
+from typing import ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr, model_serializer
 
 from app.core.money import Money, Qty
 from app.schemas.common import Out
@@ -63,3 +64,180 @@ class CostLineOut(Out):
 
 class TempPasswordOut(Out):
     temporary_password: str
+
+
+# ——— التكاليف: تُحجب عمّن لا يملك «التكاليف» (المالك أو costs_view) ————————————————
+class CostAware(Out):
+    """حقول COST_FIELDS تسقط من الاستجابة (لا null) إن حُجبت؛ والحجب يسري على الأبناء."""
+    COST_FIELDS: ClassVar[tuple[str, ...]] = ()
+    _hide: bool = PrivateAttr(default=False)
+
+    @model_serializer(mode="wrap")
+    def _drop_costs(self, handler):
+        data = handler(self)
+        if self._hide:
+            for k in self.COST_FIELDS:
+                data.pop(k, None)
+        return data
+
+    def hide_costs(self, hide: bool = True):
+        self._hide = hide
+        for name in type(self).model_fields:
+            v = getattr(self, name)
+            for child in (v if isinstance(v, list) else [v]):
+                if isinstance(child, CostAware):
+                    child.hide_costs(hide)
+        return self
+
+
+class SourceOut(CostAware):
+    COST_FIELDS = ("purchase_price",)
+    offer_id: int
+    priority: int
+    supplier_name: str
+    status: str
+    available_qty: Qty
+    purchase_price: Money | None = None
+
+
+class CatalogRowOut(CostAware):
+    COST_FIELDS = ("margin_value", "cost_ref", "mode")
+    id: int
+    name_ar: str
+    unit: str
+    unit_size: Qty
+    category: str
+    sale_price: Money | None
+    visibility: str
+    is_available: bool
+    below_cost: bool
+    needs_review: bool
+    sources: int
+    mode: str | None = None
+    margin_value: Decimal | None = None
+    cost_ref: Money | None = None
+
+
+class PriceChangeOut(CostAware):
+    COST_FIELDS = ("purchase_old", "purchase_new")
+    at: datetime
+    kind: str
+    label: str
+    sale_old: Money | None = None
+    sale_new: Money | None = None
+    purchase_old: Money | None = None
+    purchase_new: Money | None = None
+    by: str
+
+
+class ItemPricingOut(CostAware):
+    COST_FIELDS = ("mode", "margin_value", "manual_price", "cost_ref")
+    item: CatalogRowOut
+    reprice_override: bool | None
+    sources_detail: list[SourceOut]
+    history: list[PriceChangeOut]
+    mode: str | None = None
+    margin_value: Decimal | None = None
+    manual_price: Money | None = None
+    cost_ref: Money | None = None
+
+
+class PricingIn(BaseModel):
+    mode: str = Field(pattern="^(manual|margin_pct|margin_amount)$")
+    margin_value: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    manual_price: Decimal | None = Field(default=None, gt=0, decimal_places=3)
+    reprice_override: bool | None = None
+
+
+class CatalogPatchIn(BaseModel):
+    visibility: str | None = Field(default=None, pattern="^(visible|hidden)$")
+    oos_policy: str | None = Field(default=None, pattern="^(auto_hide|mark_out|project)$")
+    weight_kg: Decimal | None = Field(default=None, gt=0, decimal_places=3)
+    name_ar: str | None = Field(default=None, min_length=1, max_length=120)
+
+
+class CatalogNewIn(BaseModel):
+    product_id: int
+    category_id: int
+    unit: str
+    unit_size: Decimal = Field(gt=0)
+    name_ar: str = Field(min_length=1, max_length=120)
+
+
+class SourceIn(BaseModel):
+    offer_id: int
+    priority: int = Field(ge=1)
+
+
+class SupplierRowOut(Out):
+    id: int
+    name: str
+    contact_name: str
+    phone: str
+    status: str
+    payout_cycle: str | None
+    offers: int
+
+
+class OfferOut(CostAware):
+    COST_FIELDS = ("purchase_price",)
+    id: int
+    product: str
+    unit: str
+    unit_size: Qty
+    available_qty: Qty
+    status: str
+    location: str
+    purchase_price: Money | None = None
+
+
+class SupplierDetailOut(Out):
+    supplier: SupplierRowOut
+    offers: list[OfferOut]
+
+
+class CompareOut(CostAware):
+    COST_FIELDS = ("purchase_price",)
+    offer_id: int
+    supplier_name: str
+    unit: str
+    unit_size: Qty
+    available_qty: Qty
+    in_catalog: bool
+    purchase_price: Money | None = None
+
+
+class CategoryNodeOut(Out):
+    id: int
+    name_ar: str
+    name_en: str
+    icon_key: str | None
+    active: bool
+    items: int
+    children: list["CategoryNodeOut"] = []
+
+
+class CategoryIn(BaseModel):
+    parent_id: int
+    name_ar: str = Field(min_length=1, max_length=80)
+    name_en: str = Field(min_length=1, max_length=80)
+
+
+class CategoryPatchIn(BaseModel):
+    name_ar: str | None = Field(default=None, min_length=1, max_length=80)
+    name_en: str | None = Field(default=None, min_length=1, max_length=80)
+    active: bool | None = None
+
+
+class ProposalOut(Out):
+    id: int
+    name_ar: str
+    category: str
+    supplier_name: str
+    similar: list[str]
+    created_at: datetime
+
+
+class ProposalDecisionIn(BaseModel):
+    decision: str = Field(pattern="^(approve|reject)$")
+    category_id: int | None = None
