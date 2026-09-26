@@ -8,7 +8,7 @@ from app.api.deps import Principal, driver_user
 from app.core.db import Tx
 from app.core.errors import ApiError
 from app.schemas.common import HandoverOut
-from app.schemas.driver import CodeIn, MeOut, OrderOut, OrderSummaryOut, StopLineOut, StopOut
+from app.schemas.driver import CodeIn, CustodyItemOut, MeOut, OrderOut, OrderSummaryOut, StopLineOut, StopOut
 from app.services import documents
 
 router = APIRouter(prefix="/api/driver", tags=["driver"])
@@ -83,3 +83,13 @@ async def sheet(order_id: int, request: Request, p: Principal = Depends(driver_u
     async with request.app.state.db.tx("driver", p.user_id) as t:
         o = await load_order(t, p.user_id, order_id)
     return Response(documents.driver_sheet(o), media_type="application/pdf")
+
+
+@router.get("/custody", response_model=list[CustodyItemOut])
+async def custody(request: Request, p: Principal = Depends(driver_user)) -> list[CustodyItemOut]:
+    """ما بعهدتي من طلبيات ملغاة: صنف وكمية، بلا تكلفة ولا مورد (v_driver_custody)."""
+    async with request.app.state.db.tx("driver", p.user_id) as t:
+        d = await _driver(t, p.user_id)
+        rows = await t.all("SELECT id, order_id, name_ar, unit::text AS unit, unit_size, qty, status::text AS status "
+                           "FROM v_driver_custody WHERE driver_id = :d ORDER BY id", d=d["id"])
+    return [CustodyItemOut(**r) for r in rows]

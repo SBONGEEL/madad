@@ -20,7 +20,7 @@ async def path_ids(db, live) -> dict:
             "dispute_id": await _dispute(db, live),
             "warehouse_id": await db.fetchval("INSERT INTO warehouses (city, name, lat, lng, address_text) "
                                               "VALUES ('TIP', 'الظهرة', 32.89, 13.18, 'الظهرة') RETURNING id"),
-            "kind": "customer", "party_id": w.customer,
+            "kind": "customer", "party_id": w.customer, "custody_id": 0,
             "notification_id": await db.fetchval("INSERT INTO notifications (user_id, kind, title, body) VALUES ($1, "
                                                  "'broadcast', 't', 'b') RETURNING id", w.owner),
             "zone_id": await db.fetchval("INSERT INTO delivery_zones (city, name_ar, fee) VALUES ('TIP', 'قرقارش', 10) RETURNING id"),
@@ -90,4 +90,6 @@ WRITES = {
     ("PUT", "/api/admin/zones/{zone_id}"): lambda ids: {"name_ar": "x", "fee": "1"},
     ("POST", "/api/admin/areas"): lambda ids: {"name_ar": "x", "fee": "1", "polygon": [[1, 1], [1, 2], [2, 2]]},
     ("PUT", "/api/admin/areas/{area_id}"): lambda ids: {"name_ar": "x", "fee": "1", "polygon": [[1, 1], [1, 2], [2, 2]]},
+    # الأمانة (معتمد في §12-ز)
+    ("POST", "/api/admin/custody/{custody_id}/decide"): lambda ids: {"fate": "return_supplier"},
 }

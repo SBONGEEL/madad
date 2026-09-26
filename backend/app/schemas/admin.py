@@ -134,6 +134,7 @@ class ItemPricingOut(CostAware):
     COST_FIELDS = ("mode", "margin_value", "manual_price", "cost_ref")
     item: CatalogRowOut
     reprice_override: bool | None
+    cost_basis_override: str | None
     sources_detail: list[SourceOut]
     history: list[PriceChangeOut]
     mode: str | None = None
@@ -147,6 +148,7 @@ class PricingIn(BaseModel):
     margin_value: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     manual_price: Decimal | None = Field(default=None, gt=0, decimal_places=3)
     reprice_override: bool | None = None
+    cost_basis_override: str | None = Field(default=None, pattern="^(max_source|first_priority)$")   # م-6: null = المشروع
 
 
 class CatalogPatchIn(BaseModel):
@@ -463,6 +465,18 @@ class WithdrawalOut(Out):
     note: str
     created_by_name: str
     created_at: datetime
+    exceeds_profit: bool                 # م-26: تجاوز الربح المتاح لحظة السحب
+    profit_at_time: Money | None
+
+
+class WithdrawalPreviewOut(Out):
+    """م-26: ما يُعرض قبل التأكيد. blocked = يتجاوز نقد الخزينة (يُمنع)؛ exceeds = يتجاوز الربح (تنبيه)."""
+    amount: Money
+    treasury: Money
+    profit_available: Money
+    blocked: bool
+    exceeds: bool
+    over_by: Money
 
 
 class WithdrawalsOut(Out):
@@ -668,6 +682,8 @@ class SettingsOut(Out):
     cancel_policy: str
     oversell_policy: str
     pickup_proof_required: bool
+    fee_conflict_rule: str
+    cost_guard_basis: str
     cogs_method: str
     cogs_periods: list[dict]
 
@@ -693,6 +709,8 @@ class SettingsIn(BaseModel):
     cancel_policy: str | None = Field(default=None, pattern="^(until_collecting|anytime)$")
     oversell_policy: str | None = Field(default=None, pattern="^(forbid|allow)$")
     pickup_proof_required: bool | None = None
+    fee_conflict_rule: str | None = Field(default=None, pattern="^(area_wins|zone_wins|higher|lower)$")   # م-25
+    cost_guard_basis: str | None = Field(default=None, pattern="^(max_source|first_priority)$")        # م-6
 
 
 class CogsIn(BaseModel):
@@ -738,3 +756,28 @@ class AreaIn(BaseModel):
     fee: Decimal = Field(ge=0, decimal_places=3)
     polygon: list[list[float]] = Field(min_length=3)
     active: bool = True
+
+
+# ——— الأمانة بعهدة السائقين ومصيرها (معتمد في §12-ز) ————————————————————————————————
+class CustodyOut(CostAware):
+    COST_FIELDS = ("unit_cost", "value")
+    id: int
+    order_id: int
+    dispute_id: int | None
+    driver_id: int
+    driver_name: str
+    item: str
+    qty: Qty
+    source: str
+    status: str
+    fate: str | None
+    target: str | None
+    created_at: datetime
+    unit_cost: Money | None = None
+    value: Money | None = None
+
+
+class CustodyDecideIn(BaseModel):
+    fate: str = Field(pattern="^(to_warehouse|return_supplier|to_order)$")
+    target_warehouse_id: int | None = None
+    target_order_id: int | None = None

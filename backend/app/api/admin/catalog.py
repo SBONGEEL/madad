@@ -50,7 +50,8 @@ async def catalog(request: Request, category_id: int | None = None, needs_review
 
 async def _pricing(t: Tx, item_id: int) -> ItemPricingOut:
     item = await _row(t, item_id)
-    pr = await t.one("SELECT mode::text AS mode, margin_value, manual_price, reprice_override FROM catalog_item_pricing "
+    pr = await t.one("SELECT mode::text AS mode, margin_value, manual_price, reprice_override, "
+                     "cost_basis_override::text AS cost_basis_override FROM catalog_item_pricing "
                      "WHERE catalog_item_id = :i", i=item_id) or {}
     sources = await t.all(
         "SELECT o.id AS offer_id, s.priority, sp.name AS supplier_name, o.status::text AS status, "
@@ -70,6 +71,7 @@ SELECT * FROM (
    WHERE h.offer_id IN (SELECT offer_id FROM catalog_item_sources WHERE catalog_item_id = :i)
 ) x ORDER BY at DESC LIMIT 50""", i=item_id)
     return ItemPricingOut(item=item, reprice_override=pr.get("reprice_override"),
+                          cost_basis_override=pr.get("cost_basis_override"),
                           sources_detail=[SourceOut(**s) for s in sources],
                           history=[PriceChangeOut(**h) for h in hist],
                           mode=pr.get("mode"), margin_value=pr.get("margin_value"),
@@ -92,12 +94,14 @@ async def set_pricing(item_id: int, body: PricingIn, request: Request, p: Princi
     """الهامش والسعر اليدوي تكاليف: لمن يملك «التكاليف»، والقاعدة تفحص «الكتالوج» أيضاً."""
     async with request.app.state.db.tx("admin", p.user_id) as t:
         await t.run("""
-INSERT INTO catalog_item_pricing (catalog_item_id, mode, margin_value, manual_price, reprice_override)
-VALUES (:i, CAST(:m AS pricing_mode), :mv, :mp, :ro)
+INSERT INTO catalog_item_pricing (catalog_item_id, mode, margin_value, manual_price, reprice_override, cost_basis_override)
+VALUES (:i, CAST(:m AS pricing_mode), :mv, :mp, :ro, CAST(:cb AS cost_guard_basis))
 ON CONFLICT (catalog_item_id) DO UPDATE SET mode = EXCLUDED.mode, margin_value = EXCLUDED.margin_value,
-       manual_price = EXCLUDED.manual_price, reprice_override = EXCLUDED.reprice_override""",
+       manual_price = EXCLUDED.manual_price, reprice_override = EXCLUDED.reprice_override,
+       cost_basis_override = EXCLUDED.cost_basis_override""",
                     i=item_id, m=body.mode, mv=body.margin_value if body.mode != "manual" else None,
-                    mp=body.manual_price if body.mode == "manual" else None, ro=body.reprice_override)
+                    mp=body.manual_price if body.mode == "manual" else None, ro=body.reprice_override,
+                    cb=body.cost_basis_override)
         return await _pricing(t, item_id)
 
 

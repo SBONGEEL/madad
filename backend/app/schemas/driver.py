@@ -58,5 +58,15 @@ class OrderOut(Out):
     stops: list[StopOut]
 
 
+class CustodyItemOut(Out):
+    id: int
+    order_id: int
+    name_ar: str
+    unit: str
+    unit_size: Qty
+    qty: Qty
+    status: str
+
+
 class CodeIn(BaseModel):
     code: str = Field(pattern=r"^[0-9]{6}$")

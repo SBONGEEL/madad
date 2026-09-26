@@ -91,6 +91,6 @@ async def test_withdrawals_are_the_owners(db, client):
                      "VALUES ('TIP', 'opening_cash', 1000, '2026-09-26', 'افتتاح', $1)", w.owner)
     r = await client.post("/api/admin/withdrawals", headers=H(tok), json={"amount": "300", "occurred_on": "2026-09-26", "note": "سحب"})
     assert r.status_code == 201 and r.json()["drawings_total"] == "300.000"
-    assert "exceeds_profit" not in r.json()["entries"][0]          # تنبيه م-26 بانتظار اعتماد تصميمه
+    assert r.json()["entries"][0]["exceeds_profit"] is True        # م-26 معتمد: بلا ربح بعد، السحب مُعلَّم
     sup = (await supervisors(db, client))[SUP_ALL]
     assert (await client.get("/api/admin/withdrawals", headers=sup)).status_code == 403

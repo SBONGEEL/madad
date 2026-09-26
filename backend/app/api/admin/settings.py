@@ -1,7 +1,7 @@
 """اللوحة — الإعدادات (م-5، م-6، م-7، م-12، م-15، م-22، م-24)، ومناطق التوصيل (م-16).
 
-كل تغيير يُدقَّق في القاعدة (zz_audit)، ولا يسري على طلبية قائمة (لقطات الطلبية). إعدادا م-25
-وأساس التكلفة (م-6) إضافتان بانتظار اعتماد تصميمهما: لا تمرّ منهما هنا بعد.
+كل تغيير يُدقَّق في القاعدة (zz_audit)، ولا يسري على طلبية قائمة (لقطات الطلبية). إعداد م-27
+(تداخل المنطقتين) إضافةٌ بانتظار اعتماد تصميمها: لا يمرّ هنا بعد.
 """
 from __future__ import annotations
 
@@ -22,9 +22,10 @@ COLS = ("min_order_amount, min_order_lines, min_order_decided, fee_mode::text AS
         "free_delivery_threshold, oos_policy::text AS oos_policy, warehouse_first, auto_confirm_max_amount, driver_pay_base, "
         "driver_pay_per_stop, driver_pay_per_km, driver_cash_cap, collection_mode::text AS collection_mode, "
         "reprice_on_cost_change, cancel_policy::text AS cancel_policy, oversell_policy::text AS oversell_policy, "
-        "pickup_proof_required")
+        "pickup_proof_required, fee_conflict_rule::text AS fee_conflict_rule, cost_guard_basis::text AS cost_guard_basis")
 CASTS = {"fee_mode": "fee_mode", "oos_policy": "oos_policy", "collection_mode": "collection_mode",
-         "cancel_policy": "cancel_policy", "oversell_policy": "oversell_policy"}
+         "cancel_policy": "cancel_policy", "oversell_policy": "oversell_policy",
+         "fee_conflict_rule": "fee_conflict_rule", "cost_guard_basis": "cost_guard_basis"}
 
 
 async def _settings(t: Tx, c: str) -> SettingsOut:

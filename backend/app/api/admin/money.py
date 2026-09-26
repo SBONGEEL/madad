@@ -1,11 +1,12 @@
 """اللوحة — الدفتر، وتسوية السائقين (م-11)، وصرف الموردين، والمصروفات، وتقرير الربح (م-12)، والسحوبات (م-21).
 
 كل حركة مال تكتبها القاعدة قيداً مزدوجاً (مشغّلات cash_handovers/driver_payouts/supplier_payouts/…).
-تنبيه «السحب يتجاوز الربح» قبل التأكيد (م-26) إضافةٌ بانتظار اعتماد تصميمها: لا نقطة لها بعد.
+تنبيه «السحب يتجاوز الربح» قبل التأكيد (م-26): /withdrawals/preview، والعلامة في السجل.
 """
 from __future__ import annotations
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
 
@@ -15,7 +16,7 @@ from app.core.db import Tx
 from app.core.errors import ApiError
 from app.schemas.admin import (AccountOut, DriverSettleOut, EntryOut, ExpenseIn, HandoverIn, PayMethodIn, PayoutIn,
                                ProfitLineOut, ProfitOut, SupplierDueOut, SupplierPayoutIn, TxnOut, WithdrawalIn,
-                               WithdrawalOut, WithdrawalsOut)
+                               WithdrawalOut, WithdrawalPreviewOut, WithdrawalsOut)
 
 router = APIRouter()
 
@@ -168,7 +169,8 @@ SELECT {BY[by]} AS key, CASE WHEN :by = 'item' THEN sum(oi.delivered_qty) END AS
 
 # ——— سحوبات المالك (م-21) ——————————————————————————————————————————————————————
 async def _withdrawals(t: Tx, c: str) -> WithdrawalsOut:
-    rows = await t.all("SELECT w.id, w.amount, w.occurred_on, w.note, u.full_name AS created_by_name, w.created_at "
+    rows = await t.all("SELECT w.id, w.amount, w.occurred_on, w.note, u.full_name AS created_by_name, w.created_at, "
+                       "w.exceeds_profit, w.profit_at_time "
                        "FROM owner_withdrawals w JOIN app_users u ON u.id = w.created_by WHERE w.city = :c "
                        "ORDER BY w.occurred_on DESC, w.id DESC", c=c)
     treasury = await t.val("SELECT ledger_balance('treasury', :c)", c=c)
@@ -188,3 +190,13 @@ async def withdraw(body: WithdrawalIn, request: Request, p: Principal = Depends(
         await t.run("INSERT INTO owner_withdrawals (city, amount, occurred_on, note, created_by) VALUES (:c, :a, :d, :n, :u)",
                     c=city(request), a=body.amount, d=body.occurred_on, n=body.note.strip(), u=p.user_id)
         return await _withdrawals(t, city(request))
+
+
+@router.get("/withdrawals/preview", response_model=WithdrawalPreviewOut, **P("owner"))
+async def withdrawal_preview(request: Request, amount: Decimal = Decimal(0), p: Principal = Depends(admin_user)) -> WithdrawalPreviewOut:
+    """م-26: قبل التأكيد — هل يمنعه نقد الخزينة، وهل يتجاوز الربح المتاح (تنبيه بلا منع)."""
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        treasury = await t.val("SELECT ledger_balance('treasury', :c)", c=city(request))
+        avail = await t.val("SELECT round(profit_available(:c), 3)", c=city(request))
+    return WithdrawalPreviewOut(amount=amount, treasury=treasury, profit_available=avail, blocked=amount > treasury,
+                                exceeds=amount > avail, over_by=max(amount - avail, 0))
