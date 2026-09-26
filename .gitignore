@@ -1,0 +1,40 @@
+# أسرار وملفات بيئة
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+google-services*.json
+provider-credentials*
+# مخرجات بناء وتبعيات
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+android/app/build/
+.gradle/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+coverage/
+.coverage
+htmlcov/
+openapi.json
+# Docker المحلي
+docker-compose.override.yml
+*.local.yml
+.docker/
+backend/storage/
+# محرر ونظام
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
