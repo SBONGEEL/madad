@@ -13,7 +13,20 @@ async def path_ids(db, live) -> dict:
     return {"order_id": live.order, "stop_id": live.stop, "user_id": w.cust_user, "customer_id": w.customer,
             "supplier_id": w.supplier, "driver_id": w.driver, "item_id": w.item, "product_id": w.product,
             "offer_id": w.offer, "category_id": w.category,
-            "branch_id": await db.fetchval("SELECT id FROM customer_locations WHERE customer_id = $1", w.customer)}
+            "branch_id": await db.fetchval("SELECT id FROM customer_locations WHERE customer_id = $1", w.customer),
+            "order_item_id": await db.fetchval("SELECT id FROM order_items WHERE order_id = $1", live.order),
+            "line_id": await db.fetchval("SELECT l.id FROM pickup_stop_lines l JOIN pickup_stops s ON s.id = l.stop_id "
+                                         "WHERE s.order_id = $1 LIMIT 1", live.order),
+            "dispute_id": await _dispute(db, live)}
+
+
+async def _dispute(db, live) -> int:
+    await act(db, "customer", live.w.cust_user)
+    did = await db.fetchval("INSERT INTO disputes (order_id, order_item_id, opened_by_role, opened_by, kind, description) "
+                            "SELECT $1, id, 'customer', $2, 'damaged', 'تالف' FROM order_items WHERE order_id = $1 "
+                            "LIMIT 1 RETURNING id", live.order, live.w.cust_user)
+    await act(db, "system")
+    return did
 
 
 WRITES = {
@@ -32,4 +45,15 @@ WRITES = {
     ("POST", "/api/admin/categories"): lambda ids: {"parent_id": ids["category_id"], "name_ar": "فرع", "name_en": "Sub"},
     ("PATCH", "/api/admin/categories/{category_id}"): lambda ids: {"active": True},
     ("POST", "/api/admin/proposals/{product_id}"): lambda ids: {"decision": "reject"},
+    # الطلبيات والمخطط والإسناد والنزاعات
+    ("POST", "/api/admin/orders/{order_id}/confirm"): lambda ids: {},
+    ("POST", "/api/admin/orders/{order_id}/cancel"): lambda ids: {"reason": "x"},
+    ("PATCH", "/api/admin/orders/{order_id}/items/{order_item_id}"): lambda ids: {"qty": "1"},
+    ("POST", "/api/admin/orders/{order_id}/plan/lines"): lambda ids: {"order_item_id": ids["order_item_id"],
+                                                                       "offer_id": ids["offer_id"], "qty": "1"},
+    ("PATCH", "/api/admin/plan/lines/{line_id}"): lambda ids: {"qty": "1"},
+    ("DELETE", "/api/admin/plan/lines/{line_id}"): lambda ids: None,
+    ("POST", "/api/admin/orders/{order_id}/assign"): lambda ids: {"driver_id": ids["driver_id"], "route_km": "5"},
+    ("POST", "/api/admin/orders/{order_id}/unassign"): lambda ids: {},
+    ("POST", "/api/admin/disputes/{dispute_id}/resolve"): lambda ids: {"resolution": "no_action"},
 }

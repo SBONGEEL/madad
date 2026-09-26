@@ -241,3 +241,132 @@ class ProposalOut(Out):
 class ProposalDecisionIn(BaseModel):
     decision: str = Field(pattern="^(approve|reject)$")
     category_id: int | None = None
+
+
+# ——— الطلبيات والمخطط والإسناد والنزاعات ————————————————————————————————————————————
+class OrderRowOut(Out):
+    id: int
+    status: str
+    customer_name: str
+    branch_name: str
+    total: Money
+    lines: int
+    driver_name: str | None
+    placed_at: datetime | None
+    plan_complete: bool
+
+
+class OrderLineAdminOut(Out):
+    id: int
+    name_ar: str
+    unit: str
+    qty: Qty
+    unit_price: Money | None
+    line_total: Money | None
+    delivered_qty: Qty
+
+
+class StatusEventOut(Out):
+    to_status: str
+    actor_role: str
+    at: datetime
+    reason: str | None
+
+
+class OrderDetailOut(Out):
+    order: OrderRowOut
+    dest_address: str | None
+    subtotal: Money
+    delivery_fee: Money
+    driver_pay: Money | None
+    route_km: Decimal | None
+    lines: list[OrderLineAdminOut]
+    events: list[StatusEventOut]
+
+
+class CancelIn(BaseModel):
+    reason: str = Field(min_length=1, max_length=300)
+
+
+class QtyIn(BaseModel):
+    qty: Decimal = Field(gt=0, decimal_places=3)
+
+
+class PlanLineOut(CostAware):
+    COST_FIELDS = ("unit_cost",)
+    id: int
+    item: str
+    planned_qty: Qty
+    collected_qty: Qty | None
+    unit_cost: Money | None = None
+
+
+class PlanStopOut(Out):
+    id: int
+    seq: int
+    source: str
+    label: str
+    status: str
+    lines: list[PlanLineOut]
+
+
+class PlanOut(Out):
+    order_id: int
+    status: str
+    plan_complete: bool
+    stops: list[PlanStopOut]
+
+
+class PlanLineIn(BaseModel):
+    order_item_id: int
+    offer_id: int | None = None
+    warehouse_id: int | None = None
+    qty: Decimal = Field(gt=0, decimal_places=3)
+
+
+class DriverChoiceOut(Out):
+    id: int
+    full_name: str
+    vehicle: str
+    capacity_kg: Decimal | None
+    cash_held: Money
+    active_orders: int
+    over_cap: bool
+
+
+class AssignIn(BaseModel):
+    driver_id: int
+    route_km: Decimal = Field(ge=0, decimal_places=2)
+
+
+class DisputeRowOut(Out):
+    id: int
+    order_id: int
+    customer_name: str
+    kind: str
+    status: str
+    opened_by_role: str
+    created_at: datetime
+    description: str
+
+
+class DisputeDetailOut(Out):
+    dispute: DisputeRowOut
+    item: str | None
+    item_total: Money | None
+    source: str | None
+    resolution: str | None
+    resolution_amount: Money | None
+    refund_method: str | None
+    loss_bearer: str | None
+
+
+class ResolveIn(BaseModel):
+    resolution: str = Field(pattern="^(partial_discount|return|cancel|no_action)$")
+    resolution_amount: Decimal | None = Field(default=None, ge=0, decimal_places=3)
+    refund_method: str | None = Field(default=None, pattern="^(credit_next_order|cash_via_driver)$")
+    refund_driver_id: int | None = None
+    loss_bearer: str | None = Field(default=None, pattern="^(supplier|madad|driver)$")
+    loss_supplier_id: int | None = None
+    loss_driver_id: int | None = None
+    note: str | None = Field(default=None, max_length=500)
