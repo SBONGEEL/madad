@@ -27,7 +27,7 @@ async def orders(request: Request, p: Principal = Depends(customer_user)) -> lis
 
 
 async def _lines(t: Tx, order_id: int) -> list[OrderLineOut]:
-    rows = await t.all("SELECT id, name_ar, unit::text AS unit, unit_size, qty, unit_price, line_total, delivered_qty "
+    rows = await t.all("SELECT id, catalog_item_id, name_ar, unit::text AS unit, unit_size, qty, unit_price, line_total, delivered_qty "
                        "FROM v_customer_order_lines WHERE order_id = :o ORDER BY id", o=order_id)
     return [OrderLineOut(**r) for r in rows]
 

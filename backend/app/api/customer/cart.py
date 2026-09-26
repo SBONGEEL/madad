@@ -45,8 +45,9 @@ async def cart_out(t: Tx, m: dict, branch: int | None) -> CartOut:
     lines = await t.all("""
 SELECT l.catalog_item_id, l.name_ar, l.unit::text AS unit, l.unit_size, l.qty, l.unit_price, l.line_total,
        EXISTS (SELECT 1 FROM v_customer_catalog v WHERE v.id = l.catalog_item_id AND v.orderable) AS orderable,
-       ci.category_id
+       ci.category_id, CASE WHEN cs.oversell_policy = 'forbid' THEN item_available_qty(ci.id) END AS available_qty
   FROM v_customer_order_lines l JOIN catalog_items ci ON ci.id = l.catalog_item_id
+  JOIN city_settings cs ON cs.city = ci.city
  WHERE l.order_id = :o ORDER BY l.id""", o=d["id"]) if d else []
     subtotal = sum((Decimal(r["line_total"] or 0) for r in lines), Decimal("0"))
     fee, fee_error = (await _fee(t, branch, subtotal)) if (branch and lines) else (None, None)

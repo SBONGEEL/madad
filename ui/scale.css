@@ -96,3 +96,26 @@
 .md-chart-strong { fill: var(--ink); font-weight: 700; }
 .md-chart-bar { fill: var(--success); }
 .md-chart-today { fill: var(--primary); }
+/* التطبيقات الثلاثة على الهاتف (عرض اللوحات 390): عمود واحد في الوسط على الشاشات العريضة */
+:root { --w-phone: 440px; --h-bnav: 72px; --h-cbar: 88px; }
+.md-mobile { max-width: var(--w-phone); margin: 0 auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column;
+  background: var(--page); color: var(--ink); font-family: var(--font-sans); position: relative; }
+.md-mobile-main { flex: 1; display: flex; flex-direction: column; gap: var(--s-16); padding: var(--s-16); padding-bottom: calc(var(--h-bnav) + var(--s-16)); }
+.md-mobile-main-flush { padding-inline: 0; padding-top: 0; }
+.md-mobile > .md-bnav { position: fixed; bottom: 0; inset-inline: 0; max-width: var(--w-phone); margin: 0 auto; z-index: 30; padding-bottom: calc(var(--s-12) + env(safe-area-inset-bottom)); }
+.md-mobile > .md-header { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--border); }
+.md-backbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--s-10); padding: var(--s-14) var(--s-16);
+  background: var(--surface); border-bottom: 1px solid var(--border); }
+.md-backbar-btn { width: 40px; height: 40px; display: grid; place-items: center; color: var(--ink); border-radius: var(--radius-md); border: 0; background: transparent; cursor: pointer; }
+.md-backbar-title { font-weight: 700; font-size: var(--fs-18); flex: 1; }
+.md-bell { position: relative; color: var(--ink); width: 40px; height: 40px; display: grid; place-items: center; }
+.md-bell-dot { position: absolute; top: 6px; inset-inline-end: 6px; width: 8px; height: 8px; border-radius: 4px; background: var(--error); }
+.md-cbar { position: fixed; bottom: var(--h-bnav); inset-inline: 0; max-width: var(--w-phone); margin: 0 auto; z-index: 25; background: var(--surface);
+  border-top: 1px solid var(--border); padding: var(--s-12) var(--s-16); display: flex; flex-direction: column; gap: var(--s-8); box-shadow: var(--shadow-sheet); }
+.md-chip { border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); border-radius: var(--radius-pill); padding: var(--s-6) var(--s-14);
+  font: 500 var(--fs-14) var(--font-sans); white-space: nowrap; cursor: pointer; }
+.md-chip-on { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.md-hscroll { display: flex; gap: var(--s-8); overflow-x: auto; scrollbar-width: none; }
+.md-hscroll::-webkit-scrollbar { display: none; }
+.md-offline { background: var(--warning); color: var(--on-warning); text-align: center; font-size: var(--fs-13); padding: var(--s-6) var(--s-12); }
+.md-home-logo { height: 40px; display: block; }

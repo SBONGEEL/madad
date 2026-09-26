@@ -1,5 +1,8 @@
 {
   "name": "madad",
   "private": true,
-  "workspaces": ["admin"]
+  "workspaces": [
+    "admin",
+    "customer"
+  ]
 }

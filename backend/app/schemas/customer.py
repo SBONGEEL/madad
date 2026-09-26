@@ -50,6 +50,7 @@ class OrderSummaryOut(Out):
 
 class OrderLineOut(Out):
     id: int
+    catalog_item_id: int | None = None
     name_ar: str
     unit: str
     unit_size: Qty
@@ -208,6 +209,14 @@ class CartLineOut(Out):
     line_total: Money | None
     orderable: bool
     category_id: int
+    available_qty: Qty | None = None   # م-15: حين تمنع السياسة البيع فوق المتاح وحدها
+
+    @model_serializer(mode="wrap")
+    def _drop_absent(self, handler):
+        data = handler(self)
+        if data.get("available_qty") is None:
+            data.pop("available_qty", None)
+        return data
 
 
 class CartOut(Out):

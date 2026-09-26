@@ -49,10 +49,32 @@ CASES = {
     ("PUT", "/api/customer/cart/items/{catalog_item_id}"): lambda live: {"qty": "1"},
     ("PUT", "/api/customer/orders/{order_id}/items/{catalog_item_id}"): lambda live: {"qty": "1"},
     # ——— المورد ———
+    ("GET", "/api/supplier/categories"): None,
+    ("GET", "/api/supplier/dashboard"): None,
+    ("GET", "/api/supplier/dues"): None,
+    ("GET", "/api/supplier/dues.pdf"): None,
+    ("GET", "/api/supplier/locations"): None,
     ("GET", "/api/supplier/me"): None,
+    ("GET", "/api/supplier/notifications"): None,
+    ("GET", "/api/supplier/offers"): None,
     ("GET", "/api/supplier/pickups"): None,
     ("GET", "/api/supplier/pickups/{stop_id}/slip.pdf"): None,
+    ("GET", "/api/supplier/products"): None,
+    ("PATCH", "/api/supplier/locations/{location_id}"): lambda live: {"label": "المخزن الرئيسي"},
+    ("PATCH", "/api/supplier/offers/{offer_id}"): lambda live: {"reported_qty": "100"},
+    ("POST", "/api/supplier/devices"): lambda live: {"fcm_token": "token-" + "y" * 20, "platform": "android"},
+    ("POST", "/api/supplier/locations"): lambda live: {"label": "فرع ثانٍ", "lat": "32.8", "lng": "13.1", "address_text": "سوق"},
+    ("POST", "/api/supplier/media"): lambda live: {},
+    ("POST", "/api/supplier/notifications/read"): lambda live: {"all": True},
+    ("POST", "/api/supplier/offers"): lambda live: {"product_id": live.w.product, "unit": "carton", "unit_size": "12",
+                                                     "purchase_price": "50", "reported_qty": "5",
+                                                     "pickup_location_id": live.w.location},
     ("POST", "/api/supplier/pickups/{stop_id}/scan"): lambda live: {"code": "000000"},
+    ("POST", "/api/supplier/products"): lambda live: {"name_ar": "فلفل أحمر", "category_id": live.w.category},
+    ("POST", "/api/supplier/registration"): lambda live: {"name": "م", "contact_name": "س", "owner_id_media_id": live.w.media,
+                                                           "locations": [{"label": "م", "lat": "32.8", "lng": "13.1",
+                                                                          "address_text": "س"}]},
+    ("PUT", "/api/supplier/offers/{offer_id}/media"): lambda live: {"media_ids": []},
     # ——— السائق ———
     ("GET", "/api/driver/custody"): None,
     ("GET", "/api/driver/me"): None,
@@ -67,4 +89,5 @@ WRITE_CASES = {op: body for op, body in CASES.items() if op[0] != "GET"}
 
 
 def _path(path: str, live) -> str:
-    return path.format(order_id=live.order, stop_id=live.stop, catalog_item_id=live.w.item, list_id=0, branch_id=0)
+    return path.format(order_id=live.order, stop_id=live.stop, catalog_item_id=live.w.item, list_id=0, branch_id=0,
+                       offer_id=live.w.offer, location_id=live.w.location)
