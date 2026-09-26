@@ -136,6 +136,9 @@ async def collect_all(c: asyncpg.Connection, w: World, oid: int) -> None:
     await act(c, "driver", w.drv_user)
     await c.execute("UPDATE orders SET status = 'collecting' WHERE id = $1", oid)
     for stop in await c.fetch("SELECT id FROM pickup_stops WHERE order_id = $1 AND status = 'pending'", oid):
+        # M-22: إثبات الاستلام قبل «تم الجمع» — استثناء معلن §11.3 (الملف المساعد وحده)
+        await c.execute("INSERT INTO pickup_handovers (stop_id, method, code_given) SELECT id, 'code_entry', "
+                        "supplier_code FROM pickup_stops WHERE id = $1 AND source = 'supplier'", stop["id"])
         await c.execute("UPDATE pickup_stop_lines SET collected_qty = planned_qty WHERE stop_id = $1", stop["id"])
         await c.execute("UPDATE pickup_stops SET status = 'collected' WHERE id = $1", stop["id"])
 

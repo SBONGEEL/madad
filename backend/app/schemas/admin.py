@@ -59,3 +59,7 @@ class CostLineOut(Out):
     unit_cost: Money
     planned_qty: Qty
     line_cost: Money
+
+
+class TempPasswordOut(Out):
+    temporary_password: str

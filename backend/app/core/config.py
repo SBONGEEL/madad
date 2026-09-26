@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,9 +19,17 @@ class Settings(BaseSettings):
     refresh_ttl_days: int = 30
     otp_ttl_minutes: int = 5
     ticket_ttl_minutes: int = 15
-    # قناة رمز التحقق (م-14): whatsapp أولاً ثم sms. «console» للتطوير والاختبار وحده.
-    # غياب القناة يرفض الإرسال برسالة صريحة، ولا يدّعي أنه أرسل.
-    otp_sender: str = ""
+    # إرسال الرمز (م-24): «channels» = القنوات الثلاث بترتيب المالك (الافتراضي)؛
+    # «console» = الرمز في السجل، للتطوير والاختبار وحده ويستحيل على الإنتاج؛ "" = معطّل.
+    otp_sender: str = "channels"
+
+    @model_validator(mode="after")
+    def _no_console_in_production(self) -> "Settings":
+        if self.otp_sender not in ("channels", "console", ""):
+            raise ValueError(f"otp_sender غير معروف: {self.otp_sender}")
+        if self.otp_sender == "console" and self.env not in ("development", "test"):
+            raise ValueError("otp_sender=console مسموح في development وtest وحدهما، لا في " + self.env)
+        return self
 
 
 @lru_cache

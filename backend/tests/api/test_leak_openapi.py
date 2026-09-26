@@ -14,8 +14,8 @@ EXPECTED_OPERATIONS = {
     "customer": 6,   # me · categories · catalog · orders · order · receipt.pdf
     "supplier": 4,   # me · pickups · scan · slip.pdf
     "driver": 5,     # me · orders · order · code · sheet.pdf
-    "admin": 6,      # visibility (قراءة/كتابة) · capital (قراءة/كتابة) · order costs · me
-    "auth": 6,       # register start/verify/complete · login · refresh · logout
+    "admin": 7,      # visibility (قراءة/كتابة) · capital (قراءة/كتابة) · order costs · me
+    "auth": 10,       # register start/verify/complete · login · refresh · logout
 }
 
 

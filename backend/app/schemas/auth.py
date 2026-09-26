@@ -45,3 +45,17 @@ class TokensOut(Out):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+
+
+class LoginOut(TokensOut):
+    must_change_password: bool = False
+
+
+class ResetCompleteIn(BaseModel):
+    ticket: str
+    password: str = Field(min_length=PASSWORD_MIN, max_length=128)
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=PASSWORD_MIN, max_length=128)

@@ -7,7 +7,9 @@ from fastapi import APIRouter, Depends, Request
 from app.api.deps import Principal, admin_user
 from app.core.db import Tx
 from app.core.errors import ApiError
-from app.schemas.admin import CapitalEntryOut, CapitalIn, CapitalOut, CostLineOut, MeOut, Visibility
+from app.core import security
+from app.schemas.admin import (CapitalEntryOut, CapitalIn, CapitalOut, CostLineOut, MeOut, TempPasswordOut,
+                               Visibility)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -92,3 +94,17 @@ async def order_costs(order_id: int, request: Request, p: Principal = Depends(ad
             "LEFT JOIN supplier_offers so ON so.id = l.offer_id LEFT JOIN suppliers sp ON sp.id = s.supplier_id "
             "WHERE s.order_id = :o ORDER BY s.seq, l.id", o=order_id)
     return [CostLineOut(**r) for r in rows]
+
+
+# ——— م-20: إعادة تعيين كلمة المرور من اللوحة بيد المالك ————————————————————————————
+@router.post("/users/{user_id}/reset-password", response_model=TempPasswordOut)
+async def reset_password(user_id: int, request: Request, p: Principal = Depends(admin_user)) -> TempPasswordOut:
+    """كلمة مؤقتة تُعرض للمالك مرة واحدة ولا تُحفظ إلا مجزّأة. المالك وحده (require_owner في
+    trg_password_change)، والحدث في password_reset_events وسجل التدقيق، والمستخدم ملزم بتغييرها."""
+    temp = security.new_temp_password()
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        if not await t.val("SELECT password_hash IS NOT NULL FROM app_users WHERE id = :u", u=user_id):
+            raise ApiError(404, "user_not_found")
+        await t.run("UPDATE app_users SET password_hash = :h WHERE id = :u", h=security.hash_password(temp), u=user_id)
+        await t.run("UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = :u AND revoked_at IS NULL", u=user_id)
+    return TempPasswordOut(temporary_password=temp)

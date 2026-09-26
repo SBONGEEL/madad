@@ -55,3 +55,9 @@ def read(secret: str, token: str, *, typ: str) -> dict[str, Any]:
     if claims.get("typ") != typ:
         raise jwt.InvalidTokenError(f"expected {typ}")
     return claims
+
+
+def new_temp_password() -> str:
+    """كلمة مؤقتة تُملى هاتفياً: 10 أحرف بلا ما يلتبس (0/O، 1/l)."""
+    alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
+    return "".join(secrets.choice(alphabet) for _ in range(10))

@@ -11,12 +11,14 @@ from datetime import timedelta
 from enum import Enum
 
 import jwt
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 
 from app.core import security
 from app.core.db import Tx
 from app.core.errors import ApiError
-from app.schemas.auth import (CompleteIn, LoginIn, RefreshIn, StartIn, StartOut, TicketOut, TokensOut, VerifyIn)
+from app.api.deps import Principal, any_user
+from app.schemas.auth import (ChangePasswordIn, CompleteIn, LoginIn, LoginOut, RefreshIn, ResetCompleteIn, StartIn,
+                              StartOut, TicketOut, TokensOut, VerifyIn)
 from app.services import otp
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -64,62 +66,83 @@ async def _fail(t: Tx, phone: str, aud: str, city: str) -> int:
     return max_f - count
 
 
-async def _issue(request: Request, t: Tx, user_id: int, aud: str, family: str | None = None) -> TokensOut:
+async def _issue(request: Request, t: Tx, user_id: int, aud: str, family: str | None = None,
+                 out: type[TokensOut] = TokensOut) -> TokensOut:
     s = _s(request)
+    # م-20: بعد إعادة التعيين من اللوحة يحمل الرمز mc، فلا يفتح إلا تغيير كلمة المرور
+    mc = bool(await t.val("SELECT must_change_password FROM app_users WHERE id = :u", u=user_id))
     access = security.sign(s.jwt_secret, typ="access", ttl=timedelta(minutes=s.access_ttl_minutes),
-                           sub=str(user_id), au=aud)
+                           sub=str(user_id), au=aud, mc=mc)
     refresh = security.new_refresh_token()
     await t.run("INSERT INTO refresh_tokens (user_id, audience, family_id, token_hash, expires_at) "
                 "VALUES (:u, CAST(:a AS audience), CAST(:f AS uuid), :h, now() + make_interval(days => :d))",
                 u=user_id, a=aud, f=family or str(uuid.uuid4()), h=security.token_hash(refresh),
                 d=s.refresh_ttl_days)
-    return TokensOut(access_token=access, refresh_token=refresh)
+    extra = {"must_change_password": mc} if out is LoginOut else {}
+    return out(access_token=access, refresh_token=refresh, **extra)
+
+
+async def _start(request: Request, aud: str, phone: str, purpose: str) -> StartOut:
+    """ينشئ تحدياً ثم يرسله عبر القنوات. التحدي يُودَع قبل الإرسال لتُربط به محاولات
+    الإرسال، ويُحذف إن لم تصل أي قناة فلا يحجز مهلة الإعادة بلا رمز."""
+    s = _s(request)
+    code = security.new_otp_code()
+    async with request.app.state.db.tx("system") as t:
+        if await t.val("SELECT 1 FROM otp_challenges WHERE phone = :p AND audience = CAST(:a AS audience) "
+                       "AND consumed_at IS NULL AND created_at > now() - make_interval(secs => :s)",
+                       p=phone, a=aud, s=RESEND_SECONDS):
+            raise ApiError(429, "otp_too_soon", retry_after_seconds=RESEND_SECONDS)
+        ch = await t.val("INSERT INTO otp_challenges (phone, audience, code_hash, expires_at, purpose) "
+                         "VALUES (:p, CAST(:a AS audience), :h, now() + make_interval(mins => :m), :pu) RETURNING id",
+                         p=phone, a=aud, h=security.otp_hash(s.jwt_secret, phone, aud, code),
+                         m=s.otp_ttl_minutes, pu=purpose)
+    try:
+        channel = await otp.send(request.app, challenge_id=ch, phone=phone, audience=aud, code=code)
+    except ApiError:
+        async with request.app.state.db.tx("system") as t:
+            await t.run("UPDATE otp_challenges SET expires_at = created_at + interval '1 second', "
+                        "created_at = created_at - make_interval(secs => :s) WHERE id = :c", c=ch, s=RESEND_SECONDS)
+        raise
+    return StartOut(channel=channel, expires_in=s.otp_ttl_minutes * 60)
+
+
+async def _verify(request: Request, aud: str, body: VerifyIn, purpose: str) -> TicketOut:
+    s = _s(request)
+    left = None
+    async with request.app.state.db.tx("system") as t:
+        if (wait := await _locked_for(t, body.phone, aud)) is not None:
+            raise ApiError(429, "login_locked", retry_after_seconds=wait)
+        ch = await t.one("SELECT id, code_hash FROM otp_challenges WHERE phone = :p AND audience = CAST(:a AS audience) "
+                         "AND purpose = :pu AND consumed_at IS NULL AND expires_at > now() "
+                         "ORDER BY created_at DESC LIMIT 1", p=body.phone, a=aud, pu=purpose)
+        if ch is None:
+            raise ApiError(409, "otp_expired")
+        if ch["code_hash"] != security.otp_hash(s.jwt_secret, body.phone, aud, body.code):
+            left = await _fail(t, body.phone, aud, s.auth_city)
+    if left is not None:  # المحاولة الخاطئة حُفظت؛ الرفض بعد الإيداع
+        raise ApiError(409, "otp_invalid", attempts_left=left)
+    return TicketOut(ticket=security.sign(s.jwt_secret, typ=purpose, ttl=timedelta(minutes=s.ticket_ttl_minutes),
+                                          ch=ch["id"], ph=body.phone, au=aud))
 
 
 @router.post("/{audience}/register/start", status_code=202, response_model=StartOut)
 async def register_start(audience: Aud, body: StartIn, request: Request) -> StartOut:
     aud = audience
-    s = _s(request)
     async with request.app.state.db.tx("system") as t:
         user = await t.one("SELECT id, password_hash FROM app_users WHERE phone = :p AND audience = CAST(:a AS audience)",
                            p=body.phone, a=aud.value)
-        if user and user["password_hash"]:
-            raise ApiError(409, "already_registered")
-        if aud is Aud.admin and user is None:
-            raise ApiError(404, "not_invited")  # المشرف يضيفه المالك، ثم يفعّل حسابه
-        if await t.val("SELECT 1 FROM otp_challenges WHERE phone = :p AND audience = CAST(:a AS audience) "
-                       "AND consumed_at IS NULL AND created_at > now() - make_interval(secs => :s)",
-                       p=body.phone, a=aud.value, s=RESEND_SECONDS):
-            raise ApiError(429, "otp_too_soon", retry_after_seconds=RESEND_SECONDS)
-        code = security.new_otp_code()
-        channel = otp.send(request.app, phone=body.phone, audience=aud.value, code=code)
-        await t.run("INSERT INTO otp_challenges (phone, audience, code_hash, expires_at, channel) "
-                    "VALUES (:p, CAST(:a AS audience), :h, now() + make_interval(mins => :m), :c)",
-                    p=body.phone, a=aud.value, h=security.otp_hash(s.jwt_secret, body.phone, aud.value, code),
-                    m=s.otp_ttl_minutes, c=channel)
-    return StartOut(channel=channel, expires_in=s.otp_ttl_minutes * 60)
+    if user and user["password_hash"]:
+        raise ApiError(409, "already_registered")
+    if aud is Aud.admin and user is None:
+        raise ApiError(404, "not_invited")  # المشرف يضيفه المالك، ثم يفعّل حسابه
+    if not _s(request).otp_sender:
+        raise ApiError(503, "otp_channel_unavailable")
+    return await _start(request, aud.value, body.phone, "register")
 
 
 @router.post("/{audience}/register/verify", response_model=TicketOut)
 async def register_verify(audience: Aud, body: VerifyIn, request: Request) -> TicketOut:
-    aud = audience
-    s = _s(request)
-    left = None
-    async with request.app.state.db.tx("system") as t:
-        if (wait := await _locked_for(t, body.phone, aud.value)) is not None:
-            raise ApiError(429, "login_locked", retry_after_seconds=wait)
-        ch = await t.one("SELECT id, code_hash FROM otp_challenges WHERE phone = :p AND audience = CAST(:a AS audience) "
-                         "AND consumed_at IS NULL AND expires_at > now() ORDER BY created_at DESC LIMIT 1",
-                         p=body.phone, a=aud.value)
-        if ch is None:
-            raise ApiError(409, "otp_expired")
-        if ch["code_hash"] != security.otp_hash(s.jwt_secret, body.phone, aud.value, body.code):
-            left = await _fail(t, body.phone, aud.value, s.auth_city)
-    if left is not None:  # المحاولة الخاطئة حُفظت؛ الرفض بعد الإيداع
-        raise ApiError(409, "otp_invalid", attempts_left=left)
-    ticket = security.sign(s.jwt_secret, typ="register", ttl=timedelta(minutes=s.ticket_ttl_minutes),
-                           ch=ch["id"], ph=body.phone, au=aud.value)
-    return TicketOut(ticket=ticket)
+    return await _verify(request, audience.value, body, "register")
 
 
 @router.post("/{audience}/register/complete", response_model=TokensOut)
@@ -153,8 +176,8 @@ async def register_complete(audience: Aud, body: CompleteIn, request: Request) -
         return await _issue(request, t, uid, aud.value)
 
 
-@router.post("/{audience}/login", response_model=TokensOut)
-async def login(audience: Aud, body: LoginIn, request: Request) -> TokensOut:
+@router.post("/{audience}/login", response_model=LoginOut)
+async def login(audience: Aud, body: LoginIn, request: Request) -> LoginOut:
     aud = audience
     s = _s(request)
     left = None
@@ -170,7 +193,7 @@ async def login(audience: Aud, body: LoginIn, request: Request) -> TokensOut:
         else:
             await t.run("DELETE FROM auth_throttle WHERE phone = :p AND audience = CAST(:a AS audience)",
                         p=body.phone, a=aud.value)
-            return await _issue(request, t, user["id"], aud.value)
+            return await _issue(request, t, user["id"], aud.value, out=LoginOut)
     # attempts_left = 0: هذه آخر محاولة، والرقم موقوف الآن على هذا الجمهور
     raise ApiError(401, "login_failed", attempts_left=left)
 
@@ -209,4 +232,57 @@ async def logout(body: RefreshIn, request: Request) -> Response:
         await t.run("UPDATE refresh_tokens SET revoked_at = now() WHERE revoked_at IS NULL AND family_id = "
                     "(SELECT family_id FROM refresh_tokens WHERE token_hash = :h)",
                     h=security.token_hash(body.refresh_token))
+    return Response(status_code=204)
+
+
+# ——— م-20: استعادة كلمة المرور برمز جديد ————————————————————————————————————————
+@router.post("/{audience}/reset/start", status_code=202, response_model=StartOut)
+async def reset_start(audience: Aud, body: StartIn, request: Request) -> StartOut:
+    async with request.app.state.db.tx("system") as t:
+        user = await t.one("SELECT password_hash FROM app_users WHERE phone = :p AND audience = CAST(:a AS audience) "
+                           "AND active", p=body.phone, a=audience.value)
+    if not user or not user["password_hash"]:
+        raise ApiError(404, "not_registered")
+    if not _s(request).otp_sender:
+        raise ApiError(503, "otp_channel_unavailable")
+    return await _start(request, audience.value, body.phone, "reset")
+
+
+@router.post("/{audience}/reset/verify", response_model=TicketOut)
+async def reset_verify(audience: Aud, body: VerifyIn, request: Request) -> TicketOut:
+    return await _verify(request, audience.value, body, "reset")
+
+
+@router.post("/{audience}/reset/complete", response_model=TokensOut)
+async def reset_complete(audience: Aud, body: ResetCompleteIn, request: Request) -> TokensOut:
+    s = _s(request)
+    try:
+        claims = security.read(s.jwt_secret, body.ticket, typ="reset")
+    except jwt.PyJWTError:
+        raise ApiError(401, "ticket_invalid") from None
+    if claims["au"] != audience.value:
+        raise ApiError(403, "wrong_audience")
+    async with request.app.state.db.tx("system") as t:
+        if not await t.val("UPDATE otp_challenges SET consumed_at = now() WHERE id = :i AND consumed_at IS NULL "
+                           "RETURNING id", i=claims["ch"]):
+            raise ApiError(409, "otp_already_used")
+        uid = await t.val("SELECT id FROM app_users WHERE phone = :p AND audience = CAST(:a AS audience)",
+                          p=claims["ph"], a=audience.value)
+        await t.run("SELECT set_config('madad.reset_method', 'otp', true)")
+        await t.run("UPDATE app_users SET password_hash = :h WHERE id = :u", h=security.hash_password(body.password), u=uid)
+        # كلمة جديدة تُبطل كل الجلسات القائمة
+        await t.run("UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = :u AND revoked_at IS NULL", u=uid)
+        return await _issue(request, t, uid, audience.value)
+
+
+# ——— تغيير كلمة المرور بيد صاحبها (ومنه الإلزامي بعد إعادة تعيين المالك) —————————————————
+@router.post("/password", status_code=204)
+async def change_password(body: ChangePasswordIn, request: Request, p: Principal = Depends(any_user)) -> Response:
+    async with request.app.state.db.tx("system") as t:
+        current = await t.val("SELECT password_hash FROM app_users WHERE id = :u", u=p.user_id)
+        if not security.verify_password(body.current_password, current):
+            raise ApiError(401, "login_failed")
+        await t.run("SELECT set_config('madad.reset_method', 'self', true)")
+        await t.run("UPDATE app_users SET password_hash = :h WHERE id = :u",
+                    h=security.hash_password(body.new_password), u=p.user_id)
     return Response(status_code=204)
