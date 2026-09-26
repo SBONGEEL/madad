@@ -1,0 +1,84 @@
+/* مَدَد — نسخة من tokens.css في نظام التصميم (Claude Design، الإصدار 1790404177-46ef) لقوالب PDF. لا تُحرَّر هنا. */
+:root, [data-theme="light"] {
+  --primary: #0F3D3A;
+  --secondary: #2DBA9F;
+  --background: #F4F5F0;
+  --text: #1F2937;
+  --success: #22C55E;
+  --white: #FFFFFF;
+  --error: #DC2626;
+  --warning: #D97706;
+  --page: var(--background);
+  --surface: var(--white);
+  --ink: var(--text);
+  --ink-muted: rgba(31,41,55,0.72);
+  --border: rgba(31,41,55,0.10);
+  --border-strong: rgba(31,41,55,0.50);
+  --primary-tint: rgba(15,61,58,0.07);
+  --secondary-tint: rgba(45,186,159,0.16);
+  --success-tint: rgba(34,197,94,0.14);
+  --error-tint: rgba(220,38,38,0.10);
+  --warning-tint: rgba(217,119,6,0.10);
+  --primary-text: var(--primary);
+  --secondary-text: var(--primary);
+  --success-text: var(--primary);
+  --error-text: var(--error);
+  --on-primary: var(--white);
+  --on-primary-muted: rgba(255,255,255,0.78);
+  --on-primary-line: rgba(255,255,255,0.14);
+  --on-secondary: var(--primary);
+  --on-success: var(--primary);
+  --on-error: var(--white);
+  --on-warning: var(--text);
+  --action: var(--primary);
+  --on-action: var(--white);
+  --action-green: #1E7C6A;   /* M-18: الأبيض عليه 5.06:1 */
+  --on-action-green: var(--white);
+  --map-ground: var(--text);
+  --scrim: rgba(31,41,55,0.55);
+  --focus: var(--primary);
+  --shadow-card: 0 1px 2px rgba(31,41,55,0.06), 0 2px 8px rgba(31,41,55,0.05);
+  --shadow-sheet: 0 12px 32px rgba(31,41,55,0.18);
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --page: var(--primary);
+  --surface: rgba(255,255,255,0.07);
+  --ink: var(--white);
+  --ink-muted: rgba(255,255,255,0.74);
+  --border: rgba(255,255,255,0.12);
+  --border-strong: rgba(255,255,255,0.42);
+  --primary-tint: rgba(255,255,255,0.08);
+  --secondary-tint: rgba(45,186,159,0.22);
+  --success-tint: rgba(34,197,94,0.22);
+  --error-tint: rgba(220,38,38,0.24);
+  --warning-tint: rgba(217,119,6,0.24);
+  --primary-text: var(--secondary);
+  --secondary-text: var(--secondary);
+  --success-text: var(--success);
+  --error-text: var(--white);
+  --action: var(--action-green);
+  --on-action: var(--white);
+  --scrim: rgba(0,0,0,0.6);
+  --focus: var(--secondary);
+  --shadow-card: none;
+  --shadow-sheet: 0 12px 32px rgba(0,0,0,0.45);
+  color-scheme: dark;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --font-sans: "Tajawal", "Inter", system-ui, sans-serif;
+  --font-num: "Inter", "Tajawal", system-ui, sans-serif;
+  --font-latin: "Inter", system-ui, sans-serif;
+}
