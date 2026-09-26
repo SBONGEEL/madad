@@ -12,7 +12,7 @@ import asyncpg
 
 PURCHASE_CANARY = Decimal("777.77")
 MARGIN_CANARY = Decimal("17.17")          # هامش %
-SALE_PRICE = Decimal("911.31")            # round(777.77 × 1.1717, 2)
+SALE_PRICE = Decimal("911.313")           # round(777.77 × 1.1717, 3) — M-1
 SUPPLIER_CANARY = "SUPPLIER_LEAK_CANARY"
 CUSTOMER_CANARY = "CUSTOMER_LEAK_CANARY"
 ADDRESS_CANARY = "ADDRESS_LEAK_CANARY"
@@ -78,6 +78,7 @@ async def build(c: asyncpg.Connection, *, settings: bool = True) -> World:
         "VALUES ($1, 'TIP', 'السائق', '+218910000004', $2, $2, $2, 'van') RETURNING id", drv_user, media)
 
     await act(c, "admin", owner)
+    await c.execute("UPDATE drivers SET pay_method = 'periodic'")  # M-11: استثناء معلن §11.3
     for table in ("customers", "drivers"):
         await c.execute(f"UPDATE {table} SET status = 'approved', reviewed_by = $1, reviewed_at = now()", owner)
     await c.execute("UPDATE suppliers SET status = 'approved', payout_cycle = 'weekly', reviewed_by = $1, "

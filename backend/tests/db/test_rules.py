@@ -27,8 +27,8 @@ async def test_write_without_actor_is_rejected(db):
 
 # ——— المال ——————————————————————————————————————————————————————————————
 async def test_money_precision(db):
-    assert await db.fetchval("SELECT 12.34::money_lyd") == Decimal("12.34")
-    await raises(db, db.fetchval("SELECT 12.345::money_lyd"), "money_precision")
+    assert await db.fetchval("SELECT 12.345::money_lyd") == Decimal("12.345")
+    await raises(db, db.fetchval("SELECT 12.3456::money_lyd"), "money_precision")
 
 
 # ——— الحقول المشتقة ————————————————————————————————————————————————————
