@@ -16,7 +16,8 @@ router = APIRouter()
 
 SQL = """
 SELECT dc.id, dc.order_id, dc.dispute_id, dc.driver_id, d.full_name AS driver_name, ci.name_ar AS item, dc.qty,
-       coalesce(sp.name, w.name) AS source, dc.status::text AS status, dc.fate::text AS fate,
+       coalesce(sp.name, w.name) AS source,
+       CASE WHEN dc.supplier_id IS NOT NULL THEN 'supplier' ELSE 'warehouse' END AS source_kind, dc.status::text AS status, dc.fate::text AS fate,
        coalesce(tw.name, '#' || dc.target_order_id) AS target, dc.created_at, dc.unit_cost,
        round(dc.qty * dc.unit_cost, 3) AS value
   FROM driver_custody dc JOIN drivers d ON d.id = dc.driver_id JOIN catalog_items ci ON ci.id = dc.catalog_item_id

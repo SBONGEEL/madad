@@ -38,8 +38,8 @@ async def _detail(t: Tx, order_id: int) -> OrderDetailOut:
     o = await t.one(ORDER_SQL + " WHERE o.id = :o", o=order_id)
     if o is None:
         raise ApiError(404, "order_not_found")
-    x = await t.one("SELECT dest_address, subtotal, delivery_fee, driver_pay, route_km FROM orders WHERE id = :o", o=order_id)
-    lines = await t.all("SELECT oi.id, ci.name_ar, oi.unit::text AS unit, oi.qty, oi.unit_price, oi.line_total, "
+    x = await t.one("SELECT driver_id, dest_address, subtotal, delivery_fee, driver_pay, route_km FROM orders WHERE id = :o", o=order_id)
+    lines = await t.all("SELECT oi.id, oi.catalog_item_id, ci.name_ar, oi.unit::text AS unit, oi.qty, oi.unit_price, oi.line_total, "
                         "oi.delivered_qty FROM order_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id "
                         "WHERE oi.order_id = :o ORDER BY oi.id", o=order_id)
     ev = await t.all("SELECT to_status::text AS to_status, actor_role, at, reason FROM order_status_events "
@@ -88,9 +88,9 @@ async def _plan(t: Tx, order_id: int, hide: bool) -> PlanOut:
         "LEFT JOIN suppliers sp ON sp.id = s.supplier_id LEFT JOIN supplier_pickup_locations pl ON pl.id = s.pickup_location_id "
         "LEFT JOIN warehouses w ON w.id = s.warehouse_id WHERE s.order_id = :o AND s.status <> 'cancelled' ORDER BY s.seq",
         o=order_id)
-    lines = await t.all("SELECT l.id, l.stop_id, ci.name_ar AS item, l.planned_qty, l.collected_qty, c.unit_cost "
+    lines = await t.all("SELECT l.id, l.stop_id, l.order_item_id, l.offer_id, s.warehouse_id, ci.name_ar AS item, l.planned_qty, l.collected_qty, c.unit_cost "
                         "FROM pickup_stop_lines l JOIN order_items oi ON oi.id = l.order_item_id "
-                        "JOIN catalog_items ci ON ci.id = oi.catalog_item_id LEFT JOIN pickup_line_costs c ON c.stop_line_id = l.id "
+                        "JOIN pickup_stops s ON s.id = l.stop_id JOIN catalog_items ci ON ci.id = oi.catalog_item_id LEFT JOIN pickup_line_costs c ON c.stop_line_id = l.id "
                         "WHERE l.stop_id IN (SELECT id FROM pickup_stops WHERE order_id = :o) ORDER BY l.id", o=order_id)
     out = PlanOut(order_id=order_id, **o, stops=[
         PlanStopOut(**s, lines=[PlanLineOut(**{k: v for k, v in ln.items() if k != "stop_id"}).hide_costs(hide)
@@ -202,7 +202,9 @@ async def _dispute(t: Tx, dispute_id: int) -> DisputeDetailOut:
     if d is None:
         raise ApiError(404, "dispute_not_found")
     x = await t.one(
-        "SELECT ci.name_ar AS item, oi.line_total AS item_total, "
+        "SELECT d.order_item_id, (SELECT s.supplier_id FROM pickup_stop_lines l JOIN pickup_stops s ON s.id = l.stop_id "
+        "  WHERE l.order_item_id = oi.id AND s.supplier_id IS NOT NULL LIMIT 1) AS supplier_id, "
+        "(SELECT driver_id FROM orders WHERE id = d.order_id) AS driver_id, ci.name_ar AS item, oi.line_total AS item_total, "
         "(SELECT coalesce(sp.name, w.name) FROM pickup_stop_lines l JOIN pickup_stops s ON s.id = l.stop_id "
         "  LEFT JOIN suppliers sp ON sp.id = s.supplier_id LEFT JOIN warehouses w ON w.id = s.warehouse_id "
         "  WHERE l.order_item_id = oi.id LIMIT 1) AS source, "

@@ -1,0 +1,98 @@
+/* مَدَد — مقاسات التخطيط كما قِيست من لوحات التصميم المعتمدة (أحجام الخط والمسافات وعروض الأعمدة).
+   مع tokens.css هما ملفّا الرموز الوحيدان: tailwind.config.js يقرأ منهما، ولا رقم في مكوّن. */
+@font-face { font-family: "Tajawal"; font-weight: 400; font-display: swap; src: url("/fonts/tajawal-arabic-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Tajawal"; font-weight: 500; font-display: swap; src: url("/fonts/tajawal-arabic-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Tajawal"; font-weight: 700; font-display: swap; src: url("/fonts/tajawal-arabic-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 400; font-display: swap; src: url("/fonts/inter-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 500; font-display: swap; src: url("/fonts/inter-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 700; font-display: swap; src: url("/fonts/inter-latin-700-normal.woff2") format("woff2"); }
+
+:root {
+  --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-15: 15px; --fs-16: 16px;
+  --fs-17: 17px; --fs-18: 18px; --fs-19: 19px; --fs-22: 22px; --fs-26: 26px;
+  --lh-20: 20px; --lh-22: 22px; --lh-30: 30px;
+  --s-2: 2px; --s-4: 4px; --s-6: 6px; --s-8: 8px; --s-10: 10px; --s-12: 12px; --s-14: 14px; --s-16: 16px;
+  --s-20: 20px; --s-24: 24px; --s-28: 28px; --s-32: 32px; --s-40: 40px; --s-48: 48px;
+  --w-side: 248px;          /* الشريط الجانبي */
+  --w-main-max: 1160px;     /* 1440 − الشريط − الحشوة */
+  --w-login: 420px;
+  --w-dialog: 380px;
+  --w-field-sm: 160px;
+  --w-field-md: 240px;
+  --w-col-side: 360px;
+  --h-chart: 230px;
+  --h-map: 420px;
+  --h-row: 48px;
+  --hair: 1px;
+  --hair-2: 2px;
+}
+
+/* ——— أنماط اللوحات المتكررة (مساعدات التصميم: head / card / opt / note / section_title) ——— */
+.md-page { display: flex; flex-direction: column; gap: var(--s-16); padding: var(--s-28) var(--s-32); min-width: 0; flex: 1; }
+.md-page-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-16); flex-wrap: wrap; }
+.md-page-title { margin: 0; font-size: var(--fs-22); line-height: var(--lh-30); font-weight: 700; }
+.md-page-sub { font-size: var(--fs-14); color: var(--ink-muted); }
+.md-sec { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--s-20);
+  display: flex; flex-direction: column; gap: var(--s-12); box-shadow: var(--shadow-card); min-width: 0; }
+.md-sec-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s-8); flex-wrap: wrap; }
+.md-sec-title { margin: 0; font-size: var(--fs-17); font-weight: 700; }
+.md-sec-title-lg { margin: 0; font-size: var(--fs-18); font-weight: 700; }
+.md-h2 { display: flex; align-items: baseline; gap: var(--s-12); margin-top: var(--s-8); }
+.md-h2 h2 { margin: 0; font-size: var(--fs-19); font-weight: 700; }
+.md-h2 span { font-size: var(--fs-13); color: var(--ink-muted); }
+.md-opt { display: flex; gap: var(--s-10); text-align: start; padding: var(--s-12); border-radius: var(--radius-md); border: 1px solid var(--border-strong);
+  background: var(--surface); color: var(--ink); font: 400 var(--fs-14) var(--font-sans); cursor: pointer; width: 100%; }
+.md-opt:disabled { cursor: not-allowed; opacity: .6; }
+.md-opt-on { border: 2px solid var(--primary); background: var(--primary-tint); }
+.md-opt-mark { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border-strong); flex: none; margin-top: 2px; }
+.md-opt-on .md-opt-mark { border: 5px solid var(--primary); }
+.md-opt-body { display: flex; flex-direction: column; gap: var(--s-4); }
+.md-opt-label { font-size: var(--fs-15); font-weight: 700; }
+.md-opt-sub { color: var(--ink-muted); font-size: var(--fs-13); line-height: var(--lh-20); }
+.md-opt-ini { font-size: var(--fs-11); font-weight: 700; background: var(--secondary-tint); border-radius: var(--radius-pill); padding: 0 var(--s-8); align-self: flex-start; }
+.md-note { border-radius: var(--radius-md); padding: var(--s-10) var(--s-12); font-size: var(--fs-13); line-height: var(--lh-20); }
+.md-note-primary { background: var(--primary-tint); }
+.md-note-warning { background: var(--warning-tint); }
+.md-note-error { background: var(--error-tint); }
+.md-note-info { background: var(--secondary-tint); }
+.md-note-success { background: var(--success-tint); }
+.md-link { color: var(--primary-text); font-weight: 700; text-decoration: none; cursor: pointer; background: none; border: 0; padding: 0; font: inherit; }
+.md-link:hover { text-decoration: underline; }
+.md-row-link { display: flex; align-items: center; gap: var(--s-10); padding: var(--s-10) var(--s-12); border-radius: var(--radius-md);
+  background: var(--page); color: var(--ink); text-decoration: none; }
+.md-select { min-height: 48px; padding: 0 var(--s-12); border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface);
+  color: var(--ink); font: 400 var(--fs-16) var(--font-sans); }
+.md-tabs { display: flex; gap: var(--s-4); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.md-tab { border: 0; background: none; padding: var(--s-10) var(--s-14); font: 500 var(--fs-14) var(--font-sans); color: var(--ink-muted); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.md-tab-on { color: var(--primary-text); font-weight: 700; border-bottom-color: var(--primary); }
+.md-toast { position: fixed; inset-block-end: var(--s-24); inset-inline-start: 50%; transform: translateX(50%); background: var(--primary); color: var(--on-primary);
+  padding: var(--s-10) var(--s-20); border-radius: var(--radius-md); box-shadow: var(--shadow-sheet); font-size: var(--fs-14); z-index: 50; }
+.md-toast-error { background: var(--error); color: var(--on-error); }
+.md-app { display: flex; min-height: 100vh; background: var(--page); color: var(--ink); font-family: var(--font-sans); }
+.md-app > .md-side { position: sticky; top: 0; height: 100vh; overflow-y: auto; flex: none; }
+.md-side-item.active { background: var(--secondary); color: var(--on-secondary); font-weight: 700; }
+.md-dialog-wide { max-width: 560px; text-align: start; align-items: stretch; }
+.md-kv { display: flex; justify-content: space-between; gap: var(--s-12); font-size: var(--fs-14); }
+.md-muted { color: var(--ink-muted); }
+.md-map { width: 100%; height: var(--h-map); border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); background: var(--page); }
+.md-side-logo { height: 44px; display: block; }
+.md-side-out { border: 0; background: transparent; color: var(--on-primary-muted); cursor: pointer; padding: var(--s-4); border-radius: var(--radius-sm); display: grid; place-items: center; }
+.md-side-out:hover { background: var(--on-primary-line); color: var(--on-primary); }
+/* الدخول والاستعادة (Login · AdminRecovery) */
+.md-auth { min-height: 100vh; display: grid; grid-template-columns: var(--w-auth-brand) minmax(0, 1fr); background: var(--page); color: var(--ink); font-family: var(--font-sans); }
+.md-auth-brand { background: var(--primary); color: var(--on-primary); display: flex; flex-direction: column; justify-content: space-between; gap: var(--s-32); padding: var(--s-56); }
+.md-auth-logo { width: var(--w-auth-logo); }
+.md-auth-slogan { font-size: var(--fs-40); line-height: var(--lh-52); font-weight: 700; }
+.md-auth-main { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-28); padding: var(--s-48); }
+.md-auth-card { width: 100%; max-width: var(--w-login); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: var(--s-24); display: flex; flex-direction: column; gap: var(--s-14); box-shadow: var(--shadow-card); }
+@media (max-width: 900px) { .md-auth { grid-template-columns: 1fr; } .md-auth-brand { padding: var(--s-24); } .md-auth-slogan { font-size: var(--fs-26); line-height: var(--lh-30); } }
+:root { --w-auth-brand: 520px; --w-auth-logo: 280px; --s-56: 56px; --fs-40: 40px; --lh-52: 52px; }
+/* رسم المبيعات (ت-24: SVG مكتوب بلا مكتبة) */
+.md-chart { font-family: var(--font-num); font-size: var(--fs-12); }
+.md-chart-grid line { stroke: var(--border); stroke-width: 1; }
+.md-chart-axis { fill: var(--ink-muted); }
+.md-chart-strong { fill: var(--ink); font-weight: 700; }
+.md-chart-bar { fill: var(--success); }
+.md-chart-today { fill: var(--primary); }

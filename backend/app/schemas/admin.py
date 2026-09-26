@@ -103,6 +103,7 @@ class SourceOut(CostAware):
 class CatalogRowOut(CostAware):
     COST_FIELDS = ("margin_value", "cost_ref", "mode")
     id: int
+    product_id: int
     name_ar: str
     unit: str
     unit_size: Qty
@@ -113,6 +114,8 @@ class CatalogRowOut(CostAware):
     below_cost: bool
     needs_review: bool
     sources: int
+    reprice_override: bool | None
+    cost_basis_override: str | None
     mode: str | None = None
     margin_value: Decimal | None = None
     cost_ref: Money | None = None
@@ -184,6 +187,7 @@ class SupplierRowOut(Out):
 class OfferOut(CostAware):
     COST_FIELDS = ("purchase_price",)
     id: int
+    product_id: int
     product: str
     unit: str
     unit_size: Qty
@@ -231,6 +235,16 @@ class CategoryPatchIn(BaseModel):
     active: bool | None = None
 
 
+class ProductOut(Out):
+    """صنف في القاموس (§4) للبحث عند إنشاء صنف كتالوج أو مقارنة عروضه."""
+    id: int
+    name_ar: str
+    category: str
+    status: str
+    offers: int
+    in_catalog: bool
+
+
 class ProposalOut(Out):
     id: int
     name_ar: str
@@ -260,6 +274,7 @@ class OrderRowOut(Out):
 
 class OrderLineAdminOut(Out):
     id: int
+    catalog_item_id: int
     name_ar: str
     unit: str
     qty: Qty
@@ -277,6 +292,7 @@ class StatusEventOut(Out):
 
 class OrderDetailOut(Out):
     order: OrderRowOut
+    driver_id: int | None
     dest_address: str | None
     subtotal: Money
     delivery_fee: Money
@@ -297,6 +313,9 @@ class QtyIn(BaseModel):
 class PlanLineOut(CostAware):
     COST_FIELDS = ("unit_cost",)
     id: int
+    order_item_id: int
+    offer_id: int | None
+    warehouse_id: int | None
     item: str
     planned_qty: Qty
     collected_qty: Qty | None
@@ -354,6 +373,9 @@ class DisputeRowOut(Out):
 
 class DisputeDetailOut(Out):
     dispute: DisputeRowOut
+    order_item_id: int | None
+    supplier_id: int | None
+    driver_id: int | None
     item: str | None
     item_total: Money | None
     source: str | None
@@ -769,6 +791,7 @@ class CustodyOut(CostAware):
     item: str
     qty: Qty
     source: str
+    source_kind: str
     status: str
     fate: str | None
     target: str | None

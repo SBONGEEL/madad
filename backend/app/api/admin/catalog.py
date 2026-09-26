@@ -11,16 +11,17 @@ from app.api.deps import Principal, admin_user
 from app.core.db import Tx
 from app.core.errors import ApiError
 from app.schemas.admin import (CatalogNewIn, CatalogPatchIn, CatalogRowOut, CategoryIn, CategoryNodeOut, CategoryPatchIn,
-                               CompareOut, ItemPricingOut, OfferOut, PriceChangeOut, PricingIn, ProposalDecisionIn,
+                               CompareOut, ItemPricingOut, OfferOut, PriceChangeOut, PricingIn, ProductOut, ProposalDecisionIn,
                                ProposalOut, SourceIn, SourceOut, SupplierDetailOut, SupplierRowOut)
 
 router = APIRouter()
 
 ROW_SQL = """
-SELECT ci.id, ci.name_ar, ci.unit::text AS unit, ci.unit_size, cat.name_ar AS category, ci.sale_price,
+SELECT ci.id, ci.product_id, ci.name_ar, ci.unit::text AS unit, ci.unit_size, cat.name_ar AS category, ci.sale_price,
        ci.visibility::text AS visibility, ci.is_available, ci.below_cost,
        coalesce(pr.needs_review, false) AS needs_review,
        (SELECT count(*) FROM catalog_item_sources s WHERE s.catalog_item_id = ci.id) AS sources,
+       pr.reprice_override, pr.cost_basis_override::text AS cost_basis_override,
        pr.mode::text AS mode, pr.margin_value, item_cost_ref(ci.id) AS cost_ref
   FROM catalog_items ci JOIN categories cat ON cat.id = ci.category_id
   LEFT JOIN catalog_item_pricing pr ON pr.catalog_item_id = ci.id
@@ -167,7 +168,7 @@ async def supplier(supplier_id: int, request: Request, p: Principal = Depends(ad
         if s is None:
             raise ApiError(404, "supplier_not_found")
         offers = await t.all(
-            "SELECT o.id, pr.name_ar AS product, o.unit::text AS unit, o.unit_size, greatest(o.available_qty, 0) AS available_qty, "
+            "SELECT o.id, o.product_id, pr.name_ar AS product, o.unit::text AS unit, o.unit_size, greatest(o.available_qty, 0) AS available_qty, "
             "o.status::text AS status, l.label AS location, o.purchase_price FROM supplier_offers o "
             "JOIN products pr ON pr.id = o.product_id JOIN supplier_pickup_locations l ON l.id = o.pickup_location_id "
             "WHERE o.supplier_id = :i ORDER BY pr.name_ar", i=supplier_id)
@@ -224,6 +225,21 @@ async def patch_category(category_id: int, body: CategoryPatchIn, request: Reque
     if r is None:
         raise ApiError(404, "category_not_found")
     return CategoryNodeOut(**r)
+
+
+@router.get("/products", response_model=list[ProductOut], **P("catalog"))
+async def products(request: Request, q: str | None = None, p: Principal = Depends(admin_user)) -> list[ProductOut]:
+    """القاموس (§4): للبحث عند إنشاء صنف كتالوج أو فتح مقارنة العروض بالاسم لا بالرقم."""
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        rows = await t.all("""
+SELECT pr.id, pr.name_ar, cat.name_ar AS category, pr.status::text AS status,
+       (SELECT count(*) FROM supplier_offers o JOIN suppliers s ON s.id = o.supplier_id
+         WHERE o.product_id = pr.id AND s.city = :c) AS offers,
+       EXISTS (SELECT 1 FROM catalog_items ci WHERE ci.product_id = pr.id AND ci.city = :c) AS in_catalog
+  FROM products pr JOIN categories cat ON cat.id = pr.category_id
+ WHERE CAST(:q AS text) IS NULL OR pr.name_ar ILIKE '%' || :q || '%' OR pr.name_en ILIKE '%' || :q || '%'
+ ORDER BY pr.name_ar LIMIT 50""", c=city(request), q=q.strip() if q else None)
+    return [ProductOut(**r) for r in rows]
 
 
 @router.get("/proposals", response_model=list[ProposalOut], **P("catalog"))

@@ -11,6 +11,9 @@ import bcrypt
 import jwt
 
 ALG = "HS256"
+# ساعة الخادم قد ترجع ثانية أو أكثر (مزامنة الوقت في الآلة الافتراضية، أو عمّال على أجهزة مختلفة):
+# بلا سماحٍ يُرفض رمزٌ صدر للتوّ لأن «iat» يبدو في المستقبل. قِيس في حلقة الاختبار العشرينية.
+CLOCK_LEEWAY = timedelta(seconds=30)
 PASSWORD_MIN = 8
 
 
@@ -51,7 +54,8 @@ def sign(secret: str, *, typ: str, ttl: timedelta, **claims: Any) -> str:
 
 def read(secret: str, token: str, *, typ: str) -> dict[str, Any]:
     """يرفع jwt.PyJWTError عند أي خلل: توقيع، انتهاء، أو نوع غير المتوقع."""
-    claims = jwt.decode(token, secret, algorithms=[ALG], options={"require": ["exp", "iat", "typ"]})
+    claims = jwt.decode(token, secret, algorithms=[ALG], leeway=CLOCK_LEEWAY,
+                        options={"require": ["exp", "iat", "typ"]})
     if claims.get("typ") != typ:
         raise jwt.InvalidTokenError(f"expected {typ}")
     return claims

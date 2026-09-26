@@ -1,0 +1,9 @@
+@import "../../ui/tokens.css";
+@import "../../ui/scale.css";
+@import "../../ui/kit.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { background: var(--page); color: var(--ink); font-family: var(--font-sans); }
