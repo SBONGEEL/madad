@@ -1,9 +1,9 @@
-"""موجّه لوحة المالك — الشريحة الأولى: إعدادات الإظهار (م-2، م-19)، ورأس المال،
-وتكلفة الطلبية. الصلاحيات تُفحص في القاعدة (require_admin / require_owner)."""
+"""اللوحة — الأساس: الملف، إعدادات الإظهار (م-2، م-19)، رأس المال، تكلفة الطلبية، إعادة التعيين."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 
+from app.api.admin.common import P, city as _city
 from app.api.deps import Principal, admin_user
 from app.core.db import Tx
 from app.core.errors import ApiError
@@ -11,20 +11,12 @@ from app.core import security
 from app.schemas.admin import (CapitalEntryOut, CapitalIn, CapitalOut, CostLineOut, MeOut, TempPasswordOut,
                                Visibility)
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+router = APIRouter()
 
 VIS_COLS = "driver_sees_supplier_name, customer_sees_driver_name, customer_can_call_driver"
 
 
-async def _require(t: Tx, perm: str) -> None:
-    await t.run("SELECT require_admin(CAST(:p AS admin_permission))", p=perm)
-
-
-def _city(request: Request) -> str:
-    return request.app.state.settings.auth_city
-
-
-@router.get("/me", response_model=MeOut)
+@router.get("/me", response_model=MeOut, **P("any"))
 async def me(request: Request, p: Principal = Depends(admin_user)) -> MeOut:
     async with request.app.state.db.tx("admin", p.user_id) as t:
         row = await t.one("SELECT u.full_name, m.role::text AS role FROM admin_members m JOIN app_users u "
@@ -36,14 +28,13 @@ async def me(request: Request, p: Principal = Depends(admin_user)) -> MeOut:
     return MeOut(**row, permissions=perms)
 
 
-@router.get("/settings/visibility", response_model=Visibility)
+@router.get("/settings/visibility", response_model=Visibility, **P("settings"))
 async def get_visibility(request: Request, p: Principal = Depends(admin_user)) -> Visibility:
     async with request.app.state.db.tx("admin", p.user_id) as t:
-        await _require(t, "settings")
         return Visibility(**await t.one(f"SELECT {VIS_COLS} FROM city_settings WHERE city = :c", c=_city(request)))
 
 
-@router.put("/settings/visibility", response_model=Visibility)
+@router.put("/settings/visibility", response_model=Visibility, **P("settings"))
 async def put_visibility(body: Visibility, request: Request, p: Principal = Depends(admin_user)) -> Visibility:
     async with request.app.state.db.tx("admin", p.user_id) as t:
         row = await t.one(
@@ -65,14 +56,13 @@ async def _capital(t: Tx, city: str) -> CapitalOut:
     return CapitalOut(equity_balance=bal, entries=[CapitalEntryOut(**r) for r in rows])
 
 
-@router.get("/capital", response_model=CapitalOut)
+@router.get("/capital", response_model=CapitalOut, **P("money"))
 async def get_capital(request: Request, p: Principal = Depends(admin_user)) -> CapitalOut:
     async with request.app.state.db.tx("admin", p.user_id) as t:
-        await _require(t, "money")
         return await _capital(t, _city(request))
 
 
-@router.post("/capital", response_model=CapitalOut, status_code=201)
+@router.post("/capital", response_model=CapitalOut, status_code=201, **P("owner"))
 async def post_capital(body: CapitalIn, request: Request, p: Principal = Depends(admin_user)) -> CapitalOut:
     async with request.app.state.db.tx("admin", p.user_id) as t:
         await t.run("INSERT INTO owner_capital_entries (city, kind, amount, occurred_on, note, created_by) "
@@ -81,10 +71,9 @@ async def post_capital(body: CapitalIn, request: Request, p: Principal = Depends
         return await _capital(t, _city(request))
 
 
-@router.get("/orders/{order_id}/costs", response_model=list[CostLineOut])
+@router.get("/orders/{order_id}/costs", response_model=list[CostLineOut], **P("costs_view"))
 async def order_costs(order_id: int, request: Request, p: Principal = Depends(admin_user)) -> list[CostLineOut]:
     async with request.app.state.db.tx("admin", p.user_id) as t:
-        await _require(t, "costs_view")
         rows = await t.all(
             "SELECT s.id AS stop_id, ci.name_ar, sp.name AS supplier_name, so.purchase_price, c.unit_cost, "
             "l.planned_qty, round(l.planned_qty * c.unit_cost, 3) AS line_cost "
@@ -97,7 +86,7 @@ async def order_costs(order_id: int, request: Request, p: Principal = Depends(ad
 
 
 # ——— م-20: إعادة تعيين كلمة المرور من اللوحة بيد المالك ————————————————————————————
-@router.post("/users/{user_id}/reset-password", response_model=TempPasswordOut)
+@router.post("/users/{user_id}/reset-password", response_model=TempPasswordOut, **P("owner"))
 async def reset_password(user_id: int, request: Request, p: Principal = Depends(admin_user)) -> TempPasswordOut:
     """كلمة مؤقتة تُعرض للمالك مرة واحدة ولا تُحفظ إلا مجزّأة. المالك وحده (require_owner في
     trg_password_change)، والحدث في password_reset_events وسجل التدقيق، والمستخدم ملزم بتغييرها."""
