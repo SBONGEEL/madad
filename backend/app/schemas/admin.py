@@ -521,3 +521,220 @@ class MovementIn(BaseModel):
     supplier_id: int | None = None
     to_warehouse_id: int | None = None
     note: str | None = Field(default=None, max_length=300)
+
+
+# ——— الرئيسية والاعتمادات والعملاء والمستخدمون والإشعارات والتدقيق ————————————————————————
+class DashboardOut(CostAware):
+    COST_FIELDS = ("profit_today",)
+    customers: int
+    suppliers_approved: int
+    pending_approvals: int
+    orders_today: int
+    sales_today: Money
+    sales_7d: list[dict]
+    attention: dict
+    latest: list[OrderRowOut]
+    profit_today: Money | None = None
+
+
+class PendingOut(Out):
+    kind: str
+    id: int
+    name: str
+    phone: str | None
+    detail: str
+    created_at: datetime
+
+
+class ApprovalIn(BaseModel):
+    decision: str = Field(pattern="^(approve|reject)$")
+    payout_cycle: str | None = Field(default=None, pattern="^(daily|weekly|semimonthly|monthly)$")
+    pay_method: str | None = Field(default=None, pattern="^(offset_on_settlement|periodic)$")
+
+
+class CustomerRowOut(Out):
+    id: int
+    name: str
+    kind: str
+    status: str
+    branches: int
+    orders: int
+    purchaser_mode: str
+
+
+class BranchOut(Out):
+    id: int
+    name: str
+    address_text: str
+    zone: str | None
+    status: str
+    active: bool
+
+
+class MemberOut(Out):
+    user_id: int
+    full_name: str
+    phone: str
+    role: str
+    branch: str | None
+
+
+class CustomerDetailOut(Out):
+    customer: CustomerRowOut
+    contact_name: str
+    phone: str
+    month_total: Money
+    by_branch: list[dict]
+    credit: Money
+    branches: list[BranchOut]
+    members: list[MemberOut]
+
+
+class PurchaserModeIn(BaseModel):
+    purchaser_mode: str = Field(pattern="^(direct|owner_confirms)$")
+
+
+class AdminUserOut(Out):
+    user_id: int
+    full_name: str
+    phone: str
+    role: str
+    active: bool
+    permissions: list[str]
+
+
+class AdminInviteIn(BaseModel):
+    phone: str = Field(pattern=r"^\+2189[0-9]{8}$")
+    full_name: str = Field(min_length=1, max_length=120)
+    permissions: list[str] = []
+
+
+class PermissionsIn(BaseModel):
+    permissions: list[str]
+
+
+class BroadcastIn(BaseModel):
+    audience: str = Field(pattern="^(customer|driver)$")
+    title: str = Field(min_length=1, max_length=80)
+    body: str = Field(min_length=1, max_length=500)
+
+
+class BroadcastOut(Out):
+    id: int
+    audience: str
+    title: str
+    body: str
+    recipients: int
+    created_at: datetime
+
+
+class AuditOut(Out):
+    id: int
+    table_name: str
+    row_pk: str
+    op: str
+    actor: str
+    at: datetime
+    changes: dict
+
+
+class InboxOut(Out):
+    id: int
+    kind: str
+    title: str
+    body: str
+    order_id: int | None
+    created_at: datetime
+    read: bool
+
+
+# ——— الإعدادات والمناطق ————————————————————————————————————————————————————————
+class SettingsOut(Out):
+    min_order_amount: Money | None
+    min_order_lines: int | None
+    min_order_decided: bool
+    fee_mode: str | None
+    delivery_fee_flat: Money | None
+    free_delivery_threshold: Money | None
+    oos_policy: str | None
+    warehouse_first: bool
+    auto_confirm_max_amount: Money | None
+    driver_pay_base: Money | None
+    driver_pay_per_stop: Money | None
+    driver_pay_per_km: Money | None
+    driver_cash_cap: Money | None
+    collection_mode: str
+    reprice_on_cost_change: bool
+    cancel_policy: str
+    oversell_policy: str
+    pickup_proof_required: bool
+    cogs_method: str
+    cogs_periods: list[dict]
+
+
+class SettingsIn(BaseModel):
+    """الحقول الغائبة لا تتغيّر. القيمة الفارغة (null) في المال = «لم يُقرَّر» (م-5)."""
+    model_config = {"extra": "forbid"}
+    min_order_amount: Decimal | None = None
+    min_order_lines: int | None = None
+    min_order_decided: bool | None = None
+    fee_mode: str | None = Field(default=None, pattern="^(flat|by_zone)$")
+    delivery_fee_flat: Decimal | None = None
+    free_delivery_threshold: Decimal | None = None
+    oos_policy: str | None = Field(default=None, pattern="^(auto_hide|mark_out)$")
+    warehouse_first: bool | None = None
+    auto_confirm_max_amount: Decimal | None = None
+    driver_pay_base: Decimal | None = None
+    driver_pay_per_stop: Decimal | None = None
+    driver_pay_per_km: Decimal | None = None
+    driver_cash_cap: Decimal | None = None
+    collection_mode: str | None = Field(default=None, pattern="^(on_completion|per_batch)$")
+    reprice_on_cost_change: bool | None = None
+    cancel_policy: str | None = Field(default=None, pattern="^(until_collecting|anytime)$")
+    oversell_policy: str | None = Field(default=None, pattern="^(forbid|allow)$")
+    pickup_proof_required: bool | None = None
+
+
+class CogsIn(BaseModel):
+    method: str = Field(pattern="^(average|fifo)$")
+
+
+class ChannelOut(Out):
+    channel: str
+    position: int
+    enabled: bool
+    configured: bool
+
+
+class ChannelsIn(BaseModel):
+    order: list[str]                    # القنوات بالترتيب؛ sms أخيراً
+    enabled: dict[str, bool]
+
+
+class ZoneOut(Out):
+    id: int
+    name_ar: str
+    fee: Money
+    active: bool
+    branches: int
+
+
+class ZoneIn(BaseModel):
+    name_ar: str = Field(min_length=1, max_length=80)
+    fee: Decimal = Field(ge=0, decimal_places=3)
+    active: bool = True
+
+
+class AreaOut(Out):
+    id: int
+    name_ar: str
+    fee: Money
+    active: bool
+    polygon: list[list[float]]
+
+
+class AreaIn(BaseModel):
+    name_ar: str = Field(min_length=1, max_length=80)
+    fee: Decimal = Field(ge=0, decimal_places=3)
+    polygon: list[list[float]] = Field(min_length=3)
+    active: bool = True

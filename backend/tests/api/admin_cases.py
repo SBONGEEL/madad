@@ -19,7 +19,13 @@ async def path_ids(db, live) -> dict:
                                          "WHERE s.order_id = $1 LIMIT 1", live.order),
             "dispute_id": await _dispute(db, live),
             "warehouse_id": await db.fetchval("INSERT INTO warehouses (city, name, lat, lng, address_text) "
-                                              "VALUES ('TIP', 'الظهرة', 32.89, 13.18, 'الظهرة') RETURNING id")}
+                                              "VALUES ('TIP', 'الظهرة', 32.89, 13.18, 'الظهرة') RETURNING id"),
+            "kind": "customer", "party_id": w.customer,
+            "notification_id": await db.fetchval("INSERT INTO notifications (user_id, kind, title, body) VALUES ($1, "
+                                                 "'broadcast', 't', 'b') RETURNING id", w.owner),
+            "zone_id": await db.fetchval("INSERT INTO delivery_zones (city, name_ar, fee) VALUES ('TIP', 'قرقارش', 10) RETURNING id"),
+            "area_id": await db.fetchval("INSERT INTO delivery_areas (city, name_ar, fee, polygon) VALUES ('TIP', 'غرب', 15, "
+                                         "'[[32.8,13.1],[32.8,13.3],[33.0,13.3]]') RETURNING id")}
 
 
 async def _dispute(db, live) -> int:
@@ -69,4 +75,19 @@ WRITES = {
     ("POST", "/api/admin/warehouses"): lambda ids: {"name": "b", "lat": "32.9", "lng": "13.1", "address_text": "x"},
     ("POST", "/api/admin/warehouses/{warehouse_id}/movements"): lambda ids: {"kind": "intake", "item_id": ids["item_id"],
                                                                               "qty": "1", "unit_cost": "5"},
+    # الاعتمادات والعملاء والمستخدمون والإشعارات والإعدادات والمناطق
+    ("POST", "/api/admin/approvals/{kind}/{party_id}"): lambda ids: {"decision": "approve"},
+    ("PUT", "/api/admin/customers/{customer_id}/purchaser-mode"): lambda ids: {"purchaser_mode": "direct"},
+    ("POST", "/api/admin/admins"): lambda ids: {"phone": "+218910000099", "full_name": "x"},
+    ("PUT", "/api/admin/admins/{user_id}/permissions"): lambda ids: {"permissions": []},
+    ("POST", "/api/admin/broadcasts"): lambda ids: {"audience": "customer", "title": "t", "body": "b"},
+    ("POST", "/api/admin/inbox/{notification_id}/read"): lambda ids: {},
+    ("PUT", "/api/admin/settings"): lambda ids: {},
+    ("POST", "/api/admin/settings/cogs"): lambda ids: {"method": "average"},
+    ("PUT", "/api/admin/settings/otp-channels"): lambda ids: {"order": ["whatsapp_official", "whatsapp_linked", "sms"],
+                                                               "enabled": {}},
+    ("POST", "/api/admin/zones"): lambda ids: {"name_ar": "x", "fee": "1"},
+    ("PUT", "/api/admin/zones/{zone_id}"): lambda ids: {"name_ar": "x", "fee": "1"},
+    ("POST", "/api/admin/areas"): lambda ids: {"name_ar": "x", "fee": "1", "polygon": [[1, 1], [1, 2], [2, 2]]},
+    ("PUT", "/api/admin/areas/{area_id}"): lambda ids: {"name_ar": "x", "fee": "1", "polygon": [[1, 1], [1, 2], [2, 2]]},
 }
