@@ -128,6 +128,7 @@ const AR: Record<string, string> = {
   payout_not_found: "الدفعة غير موجودة.",
   reminder_invalid: "اختر يوماً ووقتاً للتذكير.",
   supplier_may_only_propose: "تقترح الصنف، ويعتمده مَدَد.",
+  offer_on_proposed_product: "العرض على صنف مقترح يبقى موقوفاً حتى يعتمده مَدَد.",
   offer_identity_immutable: "الصنف والوحدة والموقع لا تتغير بعد إضافة العرض. أضف عرضاً جديداً.",
   order_locked_for_customer: "أكّد مَدَد الطلبية؛ التعديل عبر مَدَد الآن.",
   item_not_orderable_at_place: "صنف في السلة لم يعد متاحاً.",

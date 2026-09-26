@@ -11,7 +11,7 @@ from app.api.admin.common import P, city, sees_costs
 from app.api.deps import Principal, admin_user
 from app.core.db import Tx
 from app.core.errors import ApiError
-from app.schemas.admin import (AssignIn, CancelIn, DisputeDetailOut, DisputeRowOut, DriverChoiceOut, OrderDetailOut,
+from app.schemas.admin import (AssignIn, PayOfferDecisionIn, PayOfferOut, CancelIn, DisputeDetailOut, DisputeRowOut, DriverChoiceOut, OrderDetailOut,
                                OrderLineAdminOut, OrderRowOut, PlanLineIn, PlanLineOut, PlanOut, PlanStopOut, QtyIn,
                                ResolveIn, StatusEventOut)
 
@@ -231,3 +231,35 @@ async def resolve(dispute_id: int, body: ResolveIn, request: Request, p: Princip
             "WHERE id = :i", r=body.resolution, a=body.resolution_amount, rm=body.refund_method, rd=body.refund_driver_id,
             lb=body.loss_bearer, ls=body.loss_supplier_id, ld=body.loss_driver_id, n=body.note, u=p.user_id, i=dispute_id)
         return await _dispute(t, dispute_id)
+
+
+# ——— عروض أجرة السائقين (§4.2): السائق يعرض، والمالك يقبل (فتُسند الطلبية) أو يرفض ——————————
+async def _pay_offers(t: Tx, order_id: int) -> list[PayOfferOut]:
+    rows = await t.all("""
+SELECT f.id, f.driver_id, d.full_name AS driver_name, f.amount, f.status::text AS status, f.created_at,
+       CASE WHEN o.route_km IS NOT NULL THEN round(cs.driver_pay_base + cs.driver_pay_per_stop *
+            (SELECT count(*) FROM pickup_stops WHERE order_id = o.id AND status <> 'cancelled')
+            + cs.driver_pay_per_km * o.route_km, 3) END AS formula_pay
+  FROM driver_pay_offers f JOIN drivers d ON d.id = f.driver_id JOIN orders o ON o.id = f.order_id
+  JOIN city_settings cs ON cs.city = o.city
+ WHERE f.order_id = :o ORDER BY (f.status = 'pending') DESC, f.amount, f.id""", o=order_id)
+    return [PayOfferOut(**r) for r in rows]
+
+
+@router.get("/orders/{order_id}/pay-offers", response_model=list[PayOfferOut], **P("orders"))
+async def pay_offers(order_id: int, request: Request, p: Principal = Depends(admin_user)) -> list[PayOfferOut]:
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        return await _pay_offers(t, order_id)
+
+
+@router.post("/pay-offers/{pay_offer_id}/decide", response_model=list[PayOfferOut], **P("orders"))
+async def decide_pay_offer(pay_offer_id: int, body: PayOfferDecisionIn, request: Request,
+                           p: Principal = Depends(admin_user)) -> list[PayOfferOut]:
+    """القبول يُسند الطلبية للسائق بأجرته ويسحب العروض الأخرى (trg_driver_offer_after)."""
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        oid = await t.val("SELECT order_id FROM driver_pay_offers WHERE id = :f", f=pay_offer_id)
+        if oid is None:
+            raise ApiError(404, "offer_not_found")
+        await t.run("UPDATE driver_pay_offers SET status = CAST(:s AS driver_offer_status) WHERE id = :f",
+                    s="accepted" if body.decision == "accept" else "rejected", f=pay_offer_id)
+        return await _pay_offers(t, oid)

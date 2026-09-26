@@ -804,3 +804,18 @@ class CustodyDecideIn(BaseModel):
     fate: str = Field(pattern="^(to_warehouse|return_supplier|to_order)$")
     target_warehouse_id: int | None = None
     target_order_id: int | None = None
+
+
+# ——— عروض أجرة السائقين (§4.2) ——————————————————————————————————————————————————————
+class PayOfferOut(Out):
+    id: int
+    driver_id: int
+    driver_name: str
+    amount: Money
+    status: str
+    created_at: datetime
+    formula_pay: Money | None
+
+
+class PayOfferDecisionIn(BaseModel):
+    decision: str = Field(pattern="^(accept|reject)$")

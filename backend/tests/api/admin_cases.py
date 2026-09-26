@@ -20,7 +20,7 @@ async def path_ids(db, live) -> dict:
             "dispute_id": await _dispute(db, live),
             "warehouse_id": await db.fetchval("INSERT INTO warehouses (city, name, lat, lng, address_text) "
                                               "VALUES ('TIP', 'الظهرة', 32.89, 13.18, 'الظهرة') RETURNING id"),
-            "kind": "customer", "party_id": w.customer, "custody_id": 0,
+            "kind": "customer", "party_id": w.customer, "custody_id": 0, "pay_offer_id": 0,
             "notification_id": await db.fetchval("INSERT INTO notifications (user_id, kind, title, body) VALUES ($1, "
                                                  "'broadcast', 't', 'b') RETURNING id", w.owner),
             "zone_id": await db.fetchval("INSERT INTO delivery_zones (city, name_ar, fee) VALUES ('TIP', 'قرقارش', 10) RETURNING id"),
@@ -64,6 +64,7 @@ WRITES = {
     ("POST", "/api/admin/orders/{order_id}/assign"): lambda ids: {"driver_id": ids["driver_id"], "route_km": "5"},
     ("POST", "/api/admin/orders/{order_id}/unassign"): lambda ids: {},
     ("POST", "/api/admin/disputes/{dispute_id}/resolve"): lambda ids: {"resolution": "no_action"},
+    ("POST", "/api/admin/pay-offers/{pay_offer_id}/decide"): lambda ids: {"decision": "reject"},
     # المال والمخازن
     ("POST", "/api/admin/drivers/{driver_id}/handover"): lambda ids: {"amount": "1"},
     ("POST", "/api/admin/drivers/{driver_id}/payout"): lambda ids: {"amount": "1"},

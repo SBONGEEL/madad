@@ -447,6 +447,20 @@ export interface PayMethodIn {
   pay_method: string;
 }
 
+export interface PayOfferDecisionIn {
+  decision: string;
+}
+
+export interface PayOfferOut {
+  id: number;
+  driver_id: number;
+  driver_name: string;
+  amount: string;
+  status: string;
+  created_at: string;
+  formula_pay: string | null;
+}
+
 export interface PayoutIn {
   amount: number | string;
   note?: string | null;

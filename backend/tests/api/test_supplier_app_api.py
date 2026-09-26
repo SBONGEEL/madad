@@ -236,3 +236,21 @@ async def test_supplier_media_of_someone_else_is_refused(db):
     await raises(db.execute("INSERT INTO supplier_offer_media (offer_id, media_id) VALUES ($1, $2)", w.offer, theirs),
                  "media_not_owned")
 
+
+
+async def test_offer_on_a_proposed_item_stays_paused(db, client):
+    """م-4 (لوحة «إضافة عرض»): عرض على صنف مقترح يبقى موقوفاً حتى يعتمده مَدَد — في الاتجاهين."""
+    w, tok = await _world(db, client)
+    pid = (await client.post("/api/supplier/products", headers=H(tok), json={"name_ar": "زعتر بري", "category_id": w.category}
+                             )).json()["product"]["id"]
+    body = {"product_id": pid, "unit": "bag", "unit_size": "1", "purchase_price": "5", "reported_qty": "3",
+            "pickup_location_id": w.location}
+    on = await client.post("/api/supplier/offers", headers=H(tok), json={**body, "active": True})
+    assert on.status_code == 409 and on.json()["code"] == "offer_on_proposed_product"
+    off = await client.post("/api/supplier/offers", headers=H(tok), json={**body, "active": False})
+    assert off.status_code == 201
+    oid = next(o["id"] for o in off.json() if o["product_id"] == pid)
+    await act(db, "admin", w.owner)
+    await db.execute("UPDATE products SET status = 'approved' WHERE id = $1", pid)
+    ok = await client.patch(f"/api/supplier/offers/{oid}", headers=H(tok), json={"active": True})
+    assert ok.status_code == 200 and next(o for o in ok.json() if o["id"] == oid)["status"] == "active"

@@ -9,7 +9,7 @@ import {
   useAction, useLoad,
 } from "@ui/kit";
 import { api } from "@/api/client";
-import type { DriverChoiceOut, OrderDetailOut, OrderRowOut, PlanOut } from "@/api/types";
+import type { DriverChoiceOut, OrderDetailOut, OrderRowOut, PayOfferOut, PlanOut } from "@/api/types";
 import { itemsCount, VEHICLE } from "@/lib/orders-shared";
 
 const KM = /^\d+(\.\d{1,2})?$/;
@@ -109,6 +109,8 @@ export function Assign() {
             </div>
           ) : null}
 
+          {id && o?.status === "confirmed" ? <FareOffers orderId={id} onAssigned={() => { detail.reload(); waiting.reload(); assigned.reload(); drivers.reload(); }} /> : null}
+
           <Section title="تنتظر الإسناد">
             {waiting.data?.length ? waiting.data.map((w) => (
               <OrderLink key={w.id} o={w} active={w.id === id} onClick={() => choose(w.id)} />
@@ -146,5 +148,42 @@ function OrderLink({ o, active, onClick }: { o: OrderRowOut; active: boolean; on
       </span>
       <Money value={o.total} size="sm" />
     </button>
+  );
+}
+
+/** عروض أجرة من السائقين (§4.2): السائق يطلب أجرة غير المعادلة؛ القبول يُسنده بأجرته، والرفض يبقي الطلبية مفتوحة. */
+function FareOffers({ orderId, onAssigned }: { orderId: number; onAssigned: () => void }) {
+  const offers = useLoad(() => api.get<PayOfferOut[]>(`/api/admin/orders/${orderId}/pay-offers`), [orderId]);
+  const act = useAction();
+  const [accepting, setAccepting] = useState<PayOfferOut | null>(null);
+  const pending = (offers.data ?? []).filter((f) => f.status === "pending");
+  if (!pending.length) return null;
+
+  async function decide(f: PayOfferOut, decision: "accept" | "reject") {
+    const v = await act.run(() => api.post<PayOfferOut[]>(`/api/admin/pay-offers/${f.id}/decide`, { decision }),
+      decision === "accept" ? `أُسندت الطلبية إلى ${f.driver_name} بأجرته` : "رُفض العرض");
+    if (!v) return;
+    offers.set(v);
+    setAccepting(null);
+    if (decision === "accept") onAssigned();
+  }
+
+  return (
+    <Section title="عروض أجرة من السائقين">
+      {pending.map((f) => (
+        <div key={f.id} className="md-note md-note-warning flex flex-col gap-2">
+          <div className="flex justify-between items-center"><b>{f.driver_name}</b><StatusBadge tone="warning">عرض مختلف</StatusBadge></div>
+          {f.formula_pay != null ? <div className="md-kv"><span className="md-muted">أجر المعادلة</span><Money value={f.formula_pay} /></div> : null}
+          <div className="md-kv"><span className="md-muted">يطلب</span><Money value={f.amount} /></div>
+          <div className="flex gap-2">
+            <Button icon="check" size="sm" loading={act.busy} onClick={() => setAccepting(f)}>قبول وإسناد</Button>
+            <Button variant="secondary" size="sm" disabled={act.busy} onClick={() => void decide(f, "reject")}>رفض</Button>
+          </div>
+        </div>
+      ))}
+      <ConfirmDialog open={!!accepting} title={<>إسناد الطلبية <Num>#{orderId}</Num> إلى {accepting?.driver_name}</>}
+        body={<>بأجرته المطلوبة <Money value={accepting?.amount} /> بدل أجر المعادلة. تُسحب عروض السائقين الآخرين.</>}
+        confirmLabel="قبول وإسناد" loading={act.busy} onConfirm={() => accepting && void decide(accepting, "accept")} onCancel={() => setAccepting(null)} />
+    </Section>
   );
 }

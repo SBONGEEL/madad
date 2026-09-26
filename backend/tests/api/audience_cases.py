@@ -76,12 +76,33 @@ CASES = {
                                                                           "address_text": "س"}]},
     ("PUT", "/api/supplier/offers/{offer_id}/media"): lambda live: {"media_ids": []},
     # ——— السائق ———
+    ("GET", "/api/driver/available"): None,
     ("GET", "/api/driver/custody"): None,
     ("GET", "/api/driver/me"): None,
+    ("GET", "/api/driver/notifications"): None,
     ("GET", "/api/driver/orders"): None,
     ("GET", "/api/driver/orders/{order_id}"): None,
     ("GET", "/api/driver/orders/{order_id}/sheet.pdf"): None,
+    ("GET", "/api/driver/settlements"): None,
+    ("GET", "/api/driver/settlements.pdf"): None,
+    ("GET", "/api/driver/wallet"): None,
+    ("POST", "/api/driver/batches/{batch_id}/deliver"): lambda live: {},
+    ("POST", "/api/driver/batches/{batch_id}/depart"): lambda live: {},
+    ("POST", "/api/driver/batches/{batch_id}/notify"): lambda live: {},
+    ("POST", "/api/driver/devices"): lambda live: {"fcm_token": "token-" + "z" * 20, "platform": "android"},
+    ("POST", "/api/driver/media"): lambda live: {},
+    ("POST", "/api/driver/notifications/read"): lambda live: {"all": True},
+    ("POST", "/api/driver/orders/{order_id}/accept"): lambda live: {},
+    ("POST", "/api/driver/orders/{order_id}/batches"): lambda live: {"lines": [{"order_item_id": 0, "qty": "1"}]},
+    ("POST", "/api/driver/orders/{order_id}/disputes"): lambda live: {"kind": "refused", "description": "رفض"},
+    ("POST", "/api/driver/orders/{order_id}/pay-offers"): lambda live: {"amount": "20"},
+    ("POST", "/api/driver/orders/{order_id}/start"): lambda live: {},
+    ("POST", "/api/driver/registration"): lambda live: {"full_name": "س", "vehicle": "van", "id_media_id": live.w.media,
+                                                         "license_media_id": live.w.media,
+                                                         "license_back_media_id": live.w.media,
+                                                         "photo_media_id": live.w.media},
     ("POST", "/api/driver/stops/{stop_id}/code"): lambda live: {"code": "000000"},
+    ("POST", "/api/driver/stops/{stop_id}/confirm"): lambda live: {"lines": [{"line_id": 0, "collected_qty": "0"}]},
 }
 
 # ما يقرؤه test_leak_responses: الكتابة بأجسامها، ومسار كل عملية بمعرّفاته.
@@ -90,4 +111,4 @@ WRITE_CASES = {op: body for op, body in CASES.items() if op[0] != "GET"}
 
 def _path(path: str, live) -> str:
     return path.format(order_id=live.order, stop_id=live.stop, catalog_item_id=live.w.item, list_id=0, branch_id=0,
-                       offer_id=live.w.offer, location_id=live.w.location)
+                       offer_id=live.w.offer, location_id=live.w.location, batch_id=0)
