@@ -3,6 +3,9 @@
 """
 from __future__ import annotations
 
+import json
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, Request, Response
 
 from app.api.admin.common import P, city, sees_costs
@@ -237,11 +240,12 @@ async def audit(request: Request, table: str | None = None, p: Principal = Depen
             "SELECT a.id, a.table_name, a.row_pk, a.op, coalesce(u.full_name, a.actor_role) AS actor, a.at, "
             "coalesce((SELECT jsonb_object_agg(k, jsonb_build_array(a.before -> k, a.after -> k)) FROM jsonb_object_keys("
             "coalesce(a.after, a.before)) k WHERE (a.before -> k) IS DISTINCT FROM (a.after -> k) "
-            "AND k NOT IN ('password_hash')), '{}'::jsonb) AS changes "
+            "AND k NOT IN ('password_hash')), '{}'::jsonb)::text AS changes "
             "FROM audit_log a LEFT JOIN app_users u ON u.id = a.actor_id "
             "WHERE (CAST(:t AS text) IS NULL OR a.table_name = :t) AND (NOT :h OR NOT (a.table_name = ANY(:ct))) "
             "ORDER BY a.id DESC LIMIT 200", t=table, h=hide, ct=COST_TABLES)
-    return [AuditOut(**r) for r in rows]
+    # الأرقام كما في القاعدة بالضبط (Decimal لا float): «17.1700000» لا «17.17»، ولا تقريب ثنائي في مبلغ
+    return [AuditOut(**{**r, "changes": json.loads(r["changes"], parse_float=Decimal)}) for r in rows]
 
 
 # ——— إشعاراتي ——————————————————————————————————————————————————————————————

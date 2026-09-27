@@ -11,7 +11,7 @@ from decimal import Decimal
 import asyncpg
 
 PURCHASE_CANARY = Decimal("777.77")
-MARGIN_CANARY = Decimal("17.17")          # هامش %
+MARGIN_CANARY = Decimal("17.1700000")     # هامش % — سبع خانات: لا يقع في وقت (ست على الأكثر) ولا سعر ولا كمية (الاستثناء 8)
 SALE_PRICE = Decimal("911.313")           # round(777.77 × 1.1717, 3) — M-1
 SUPPLIER_CANARY = "SUPPLIER_LEAK_CANARY"
 CUSTOMER_CANARY = "CUSTOMER_LEAK_CANARY"
