@@ -2,7 +2,7 @@
  * 04 الاستلام (م-3 محسوم): طلبات الاستلام لمحلّي، وكل نقطة بطريقتين للتسليم —
  * أمسح رمز QR في هاتف السائق (BarcodeDetector من المتصفح، بلا مكتبة)، أو أعطيه رقمي الثابت ليكتبه.
  * لا عميل ولا وجهة ولا سعر بيع ولا كود السائق: الخادم لا يرسلها أصلاً.
- * موعد الوصول «اليوم حوالي 10:30» و«السائق عندك» بلا مصدر في القاعدة (NO-DB) فلا يُعرضان.
+ * موعد الوصول «يصل حوالي 10:30» بمصدره (تقدير الخرائط أو حسب السائق)، و«السائق عندك» حين يعلّم وصوله.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -74,13 +74,23 @@ function StopList({ stops }: { stops: Pickup2Out[] }) {
             <span className="text-13 text-ink-muted">
               {p.lines.map((l) => `${l.product_name} ${lineQty(l.collected_qty ?? l.planned_qty, l.unit, l.unit_size)}`).join(" · ")}
             </span>
-            {p.status === "pending" && !p.handed_over && !p.arrived_at && p.eta_at
-              ? <span className="text-13 font-bold">يصل حوالي <Num>{fmt.time(p.eta_at)}</Num></span> : null}
+            {p.status === "pending" && !p.handed_over && !p.arrived_at ? <Eta p={p} /> : null}
             {p.assigned_at ? <span className="text-12 text-ink-muted">طُلب <Num>{fmt.dateTime(p.assigned_at)}</Num></span> : null}
           </button>
         );
       })}
     </div>
+  );
+}
+
+/** موعد وصول السائق ومصدره (§12-ي ن-5): تقدير الخرائط أو ما كتبه السائق. */
+function Eta({ p, large }: { p: Pickup2Out; large?: boolean }) {
+  if (!p.eta_at) return <span className={large ? "text-14 text-ink-muted" : "text-13 text-ink-muted"}>لم يحدد السائق موعد وصوله بعد.</span>;
+  return (
+    <span className={large ? "text-14 flex items-center justify-between gap-2" : "text-13 flex items-center justify-between gap-2"}>
+      <span>{large ? "اليوم " : ""}يصل حوالي <b><Num>{fmt.time(p.eta_at)}</Num></b></span>
+      {p.eta_source === "mapbox" ? <StatusBadge tone="info">تقدير الخرائط</StatusBadge> : <StatusBadge tone="neutral">حسب السائق</StatusBadge>}
+    </span>
   );
 }
 
@@ -155,7 +165,7 @@ function Stop({ id, list, loading, error, reload }: {
         </div>
         {stop.status === "pending" && !stop.handed_over ? (
           stop.arrived_at ? <Note tone="info"><b>السائق عندك</b> — وصل <Num>{fmt.time(stop.arrived_at)}</Num>.</Note>
-            : stop.eta_at ? <span className="text-14">اليوم حوالي <Num>{fmt.time(stop.eta_at)}</Num></span> : null
+            : <Eta p={stop} large />
         ) : null}
         <DataTable columns={cols} rows={stop.lines} rowKey={(_, i) => i} />
 

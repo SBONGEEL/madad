@@ -1,6 +1,6 @@
 /**
  * 06 الكاش والمحفظة (M-11): الكاش بحوزتك مقابل السقف، أجرك المستحق، وما تسلّمه للخزينة حسب طريقتك.
- * طريقة الأجر يحددها مَدَد لكل سائق: خصم من الكاش عند التسوية، أو صرف دوري (موعد الدورة لا عمود له — NO-DB).
+ * طريقة الأجر يحددها مَدَد لكل سائق: خصم من الكاش عند التسوية، أو صرف دوري بدوريته وموعد صرفه القادم (§12-ي).
  * آخر رصيد ناجح يُحفظ على الجهاز ليُعرض «آخر رصيد معروف» حين ينقطع الاتصال.
  */
 import { type ReactNode, useEffect } from "react";
@@ -121,7 +121,7 @@ function PayMethod({ w }: { w: WalletOut }) {
     <section className="bg-secondary-tint rounded-lg p-3.5 flex flex-col gap-1.5">
       <span className="font-bold">{offset ? "عند التسوية القادمة — خصم من الكاش" : "عند التسوية القادمة — تسلّم الكاش كاملاً"}</span>
       <span className="text-13 text-ink-muted">
-        {offset ? "طريقتك: خصم من الكاش. يُخصم أجرك عند تسليمك القادم للكاش." : "طريقتك يحددها مَدَد في ملفك، ولا تتغير من التطبيق."}
+        {offset ? "طريقتك: خصم من الكاش. يُخصم أجرك عند تسليمك القادم للكاش." : "الدورية يضبطها مَدَد (عامة أو خاصة بك). تغييرها يسري من دورتك التالية."}
       </span>
       {offset ? (
         <>
@@ -132,12 +132,25 @@ function PayMethod({ w }: { w: WalletOut }) {
       ) : (
         <>
           <Row label="تسلّم للخزينة"><Num>{fmt.money(w.handover_due)}</Num></Row>
-          <Row label="أجرك يُصرف في"><span>دورة الصرف</span></Row>
+          <Row label="طريقتك"><span>صرف دوري{w.payout_cycle && CYCLE[w.payout_cycle] ? ` · ${CYCLE[w.payout_cycle]}` : ""}</span></Row>
+          {w.next_payout_rule === "periodic" && w.next_payout_on ? (
+            <Row label="الصرف القادم"><b>{fmt.weekday(localDay(w.next_payout_on))} <Num>{fmt.date(w.next_payout_on).slice(0, 5)}</Num></b></Row>
+          ) : (
+            <span className="text-14 text-ink-muted">لم يحدد مَدَد موعد الصرف بعد. يظهر هنا حين يُضبط.</span>
+          )}
           <Row label="أجرك المستحق" strong><Num>{fmt.money(w.wage_due)}</Num></Row>
         </>
       )}
     </section>
   );
+}
+
+const CYCLE: Record<string, string> = { daily: "يومي", weekly: "أسبوعي", semimonthly: "نصف شهري", monthly: "شهري" };
+
+/** «2026-10-03» يوماً محلياً (لا منتصف ليل UTC). */
+function localDay(ymd: string): Date {
+  const [y, m, d] = ymd.slice(0, 10).split("-").map(Number);
+  return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1);
 }
 
 function SettlementsLink() {

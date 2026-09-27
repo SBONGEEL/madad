@@ -71,6 +71,13 @@ export interface AuditOut {
   changes: Record<string, unknown>;
 }
 
+export interface BackupAccessOut {
+  at: string;
+  who: string;
+  action: string;
+  file_name: string | null;
+}
+
 export interface BackupPolicyIn {
   plan: string;
   location: string;
@@ -81,6 +88,10 @@ export interface BackupPolicyOut {
   location: string;
   at: string;
   by: string;
+}
+
+export interface BackupRequestOut {
+  requested_at: string;
 }
 
 export interface BackupRunOut {
@@ -103,6 +114,14 @@ export interface BackupsOut {
   alert: string | null;
   alert_since: string | null;
   offsite_configured: boolean;
+  runs: BackupRunOut[];
+}
+
+export interface BackupStatusOut {
+  plan: string;
+  location: string;
+  alert: string | null;
+  alert_since: string | null;
   runs: BackupRunOut[];
 }
 

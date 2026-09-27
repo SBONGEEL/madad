@@ -1,4 +1,5 @@
-/** الإعدادات — طرابلس (م-5، م-6، م-7، م-8، م-12، م-15، م-16، م-19، م-2، م-22، م-24، م-25، ورقم التواصل §12-ط).
+/** الإعدادات — طرابلس (م-5، م-6، م-7، م-8، م-12، م-15، م-16، م-19، م-2، م-22، م-24، م-25، ورقم التواصل §12-ط،
+ * والصرف ونص الإشعار §12-ي).
  * كل خيار يُحفظ عند اختياره بحقله وحده؛ حقول المبالغ تُحفظ بزر «حفظ» أعلى الصفحة (المتغيّر منها فقط). */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -7,12 +8,15 @@ import { qs } from "@ui/client";
 import { arabicError } from "@ui/errors";
 import * as fmt from "@ui/fmt";
 import {
-  Button, ConfirmDialog, DataTable, Loader, Money, Note, Num, OptionGroup, PageHead, Section, SectionTitle, Select, StatusBadge,
+  Button, ConfirmDialog, DataTable, Loader, Money, Note, Num, Option, OptionGroup, PageHead, Section, SectionTitle, Select, StatusBadge,
   Switch, TextField, toast, useAction, useLoad,
 } from "@ui/kit";
 import { api } from "@/api/client";
-import type { AreaOverlapOut, AuditOut, ContactOut, ChannelOut, SettingsIn, SettingsOut, Visibility } from "@/api/types";
+import type {
+  AreaOverlapOut, AuditOut, ContactOut, ChannelOut, PayoutSettingsOut, PushTextOut, SettingsIn, SettingsOut, Visibility,
+} from "@/api/types";
 import { SETTING_LABEL, VALUE_LABEL, auditActor, showValue } from "@/lib/admin-labels";
+import { CycleOptions, RuleHistory, ScheduleEditor, schedBody, schedErrors, schedOf, type SchedDraft } from "@/lib/payout";
 import { useSession } from "@/session";
 
 type Draft = Record<DraftKey, string>;
@@ -281,6 +285,17 @@ export function Settings() {
         <ContactCard />
       </div>
 
+      <SectionTitle title="الصرف" sub="قرارات 27/09 السابعة" />
+      <PayoutCard />
+
+      <div className="grid grid-cols-2 gap-4 items-start">
+        <PushTextCard />
+        <Section title="النسخ الاحتياطية" right={<StatusBadge tone="neutral" icon="shield-check">المالك وحده</StatusBadge>}>
+          <span className="text-14">الدورية ومدة الحفظ ومكانها، والنسخ المتاحة وتنزيلها.</span>
+          <Link to="/settings/backups" className="md-link">الإعدادات ← النسخ الاحتياطية</Link>
+        </Section>
+      </div>
+
       <SectionTitle title="رموز التحقق" />
       <OtpChannels />
 
@@ -476,5 +491,96 @@ function ContactForm({ d, onSaved }: { d: ContactOut; onSaved: (v: ContactOut) =
         <Button icon="check" loading={act.busy} disabled={!!bad(phone) || !!bad(wa)} onClick={() => void save()}>حفظ</Button>
       </div>
     </>
+  );
+}
+
+/** §12-ي ٢ و٣: دورية الصرف الدوري لأجر السائق (العامة)، وطريقة موعد الصرف القادم للموردين والسائقين. لقطة كاملة تُحفظ بزر. */
+function PayoutCard() {
+  const st = useLoad(() => api.get<PayoutSettingsOut>(`/api/admin/settings/payout`));
+  return (
+    <Section title="الصرف — دورية أجر السائق وموعد الصرف القادم" right={<StatusBadge tone="neutral">§12-ي</StatusBadge>}>
+      <Loader state={st}>{(d) => <PayoutForm key={d.history[0]?.at ?? "none"} d={d} onSaved={st.set} />}</Loader>
+    </Section>
+  );
+}
+
+function PayoutForm({ d, onSaved }: { d: PayoutSettingsOut; onSaved: (v: PayoutSettingsOut) => void }) {
+  const act = useAction();
+  const [cycle, setCycle] = useState(d.general.driver_cycle ?? "weekly");
+  const [sched, setSched] = useState<SchedDraft>(schedOf(d.general));
+  const err = schedErrors(sched);
+  const bad = !!err.monthDay || !!err.semi;
+  async function save() {
+    const v = await act.run(() => api.put<PayoutSettingsOut>(`/api/admin/settings/payout`, { driver_cycle: cycle, ...schedBody(sched) }),
+      "حُفظ الصرف — يسري على الدورات الجديدة");
+    if (v) onSaved(v);
+  }
+  const sub = (t: string) => <span className="text-13 font-bold text-ink-muted">{t}</span>;
+  return (
+    <>
+      {sub("دورية الصرف الدوري لأجر السائق (العامة)")}
+      <CycleOptions value={cycle} onChange={setCycle} disabled={act.busy} />
+      <Note tone="info">تنطبق على السائقين بطريقة «صرف دوري» (م-11). لسائق بعينه دورية مختلفة من ملفه.</Note>
+      {sub("موعد الصرف القادم — للموردين والسائقين")}
+      <ScheduleEditor value={sched} onChange={setSched} disabled={act.busy} />
+      <div className="flex gap-2 items-center">
+        <Button icon="check" loading={act.busy} disabled={bad} onClick={() => void save()}>حفظ</Button>
+        <StatusBadge tone="info" icon="clock">تسري على الدورات الجديدة</StatusBadge>
+      </div>
+      {sub("سجل التغيير")}
+      <RuleHistory rows={d.history} withCycle />
+    </>
+  );
+}
+
+/** §12-ي ن-4: نص الإشعار على الشاشة المقفلة — عام (الابتدائي) أو كامل. لا رمز ولا اسم ولا هاتف ولا عنوان في الحالتين. */
+function PushTextCard() {
+  const st = useLoad(() => api.get<PushTextOut>(`/api/admin/settings/push-text`));
+  const act = useAction();
+  const [mode, setMode] = useState<string | null>(null);
+  const cur = mode ?? st.data?.mode ?? "generic";
+  async function save() {
+    const v = await act.run(() => api.put<PushTextOut>(`/api/admin/settings/push-text`, { mode: cur }), "حُفظ نص الإشعار — يسري على الإشعارات الجديدة");
+    if (v) { st.set(v); setMode(null); }
+  }
+  return (
+    <Section title="نص الإشعار على الشاشة المقفلة" right={<StatusBadge tone="neutral">§12-ي ن-4</StatusBadge>}>
+      <Loader state={st}>{(d) => (
+        <>
+          <div className="grid grid-cols-2 gap-3 items-start">
+            <div className="flex flex-col gap-2">
+              <Option label="عام" sub="والتفاصيل داخل التطبيق." initial selected={cur === "generic"} disabled={act.busy} onSelect={() => setMode("generic")} />
+              <Lock who="العميل" body="لديك تحديث على طلبيتك" />
+              <Lock who="المورد والسائق واللوحة" body="لديك إشعار جديد من مَدَد" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Option label="كامل" sub="رقم الطلبية والحالة والمبلغ." selected={cur === "full"} disabled={act.busy} onSelect={() => setMode("full")} />
+              <Lock who="العميل" body={<>طلبيتك <Num>#{SAMPLE_ORDER}</Num> — أُسندت لسائق · <Num>1,832.620</Num> د.ل</>} />
+              <Lock who="السائق واللوحة" body={<>الطلبية <Num>#{SAMPLE_ORDER}</Num> — جاري التجميع</>} />
+              <Lock who="المورد" body="طلب استلام جديد" />
+            </div>
+          </div>
+          <Note tone="info">في الحالتين لا يظهر رمز دخول، ولا اسم، ولا رقم هاتف، ولا عنوان. والمورد لا يصله رقم طلبية ولا مبلغها.</Note>
+          <div className="flex gap-2 items-center">
+            <Button icon="check" loading={act.busy} disabled={cur === d.mode} onClick={() => void save()}>حفظ</Button>
+            <StatusBadge tone="info" icon="clock">تسري على الإشعارات الجديدة</StatusBadge>
+          </div>
+        </>
+      )}</Loader>
+    </Section>
+  );
+}
+
+/** رقم طلبية للمعاينة وحدها. */
+const SAMPLE_ORDER = 1044;
+
+/** معاينة إشعار على شاشة مقفلة. */
+function Lock({ who, body }: { who: string; body: ReactNode }) {
+  return (
+    <div className="bg-ink text-page rounded-lg py-2.5 px-3 flex flex-col gap-0.5 text-13">
+      <span className="opacity-70 text-11">{who}</span>
+      <b>مَدَد</b>
+      <span>{body}</span>
+    </div>
   );
 }

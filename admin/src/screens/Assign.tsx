@@ -7,10 +7,10 @@ import { qs } from "@ui/client";
 import * as fmt from "@ui/fmt";
 import {
   Button, ConfirmDialog, DataTable, Dialog, EmptyState, Icon, Money, Note, Num, OrderStatusBadge, PageHead, Section, StatusBadge, TextField,
-  useAction, useLoad,
+  toast, useAction, useLoad,
 } from "@ui/kit";
 import { api } from "@/api/client";
-import type { DriverChoiceOut, OrderDetailOut, OrderRowOut, PayOfferOut, PlanOut } from "@/api/types";
+import type { DriverChoiceOut, OrderDetailOut, OrderRowOut, PayOfferOut, PlanOut, RouteComputeOut } from "@/api/types";
 import { itemsCount, VEHICLE } from "@/lib/orders-shared";
 
 const KM = /^\d+(\.\d{1,2})?$/;
@@ -123,7 +123,7 @@ export function Assign() {
             </div>
           ) : null}
 
-          {id && o?.status === "confirmed" ? <RouteKm orderId={id} km={detail.data?.route_km ?? null} onSaved={(v) => detail.set(v)} /> : null}
+          {id && o?.status === "confirmed" ? <RouteKm orderId={id} km={detail.data?.route_km ?? null} source={detail.data?.route_km_source ?? null} onSaved={(v) => detail.set(v)} /> : null}
           {id && o?.status === "confirmed" ? <FareOffers orderId={id} onAssigned={() => { detail.reload(); waiting.reload(); assigned.reload(); drivers.reload(); }} /> : null}
 
           <Section title="تنتظر الإسناد">
@@ -213,16 +213,31 @@ function FareOffers({ orderId, onAssigned }: { orderId: number; onAssigned: () =
   );
 }
 
-/** طول المسار قبل الإسناد (م-18): به يظهر أجر المعادلة للسائقين فيقبلون الطلبية بأنفسهم. */
-function RouteKm({ orderId, km, onSaved }: { orderId: number; km: string | null; onSaved: (v: OrderDetailOut) => void }) {
+/** طول المسار قبل الإسناد (م-18): به يظهر أجر المعادلة للسائقين فيقبلون الطلبية بأنفسهم.
+ * يُحسب من Mapbox (§12-ي ن-5) ويبقى تعديله باليد؛ تعذّر الحساب يُعرض صريحاً ولا يُغيَّر شيء. */
+function RouteKm({ orderId, km, source, onSaved }: {
+  orderId: number; km: string | null; source: string | null; onSaved: (v: OrderDetailOut) => void;
+}) {
   const act = useAction();
+  const calc = useAction();
   const [value, setValue] = useState(km ?? "");
+  const [down, setDown] = useState<"error" | "no_key" | null>(null);
   useEffect(() => setValue(km ?? ""), [km, orderId]);
+  useEffect(() => setDown(null), [orderId]);
   const ok = KM.test(value.trim());
   async function save() {
     const v = await act.run(() => api.put<OrderDetailOut>(`/api/admin/orders/${orderId}/route-km`, { route_km: value.trim() }),
       "حُفظ طول المسار؛ الطلبية ظاهرة للسائقين بأجرها");
     if (v) onSaved(v);
+  }
+  async function compute() {
+    const v = await calc.run(() => api.post<RouteComputeOut>(`/api/admin/orders/${orderId}/route-km/compute`));
+    if (!v) return;
+    onSaved(v.detail);
+    if (v.routing.status === "ok") {
+      setDown(null);
+      toast("حُسب طول المسار من Mapbox");
+    } else setDown(v.routing.reason === "no_key" ? "no_key" : "error");
   }
   return (
     <Section title="طول المسار">
@@ -230,10 +245,22 @@ function RouteKm({ orderId, km, onSaved }: { orderId: number; km: string | null;
         {km == null ? "بلا طول مسار لا يظهر أجر المعادلة للسائقين ولا يقبلون الطلبية بأنفسهم." : "يُحسب به أجر المعادلة، ويظهر للسائقين المتاحين."}
       </span>
       <div className="flex gap-2 items-end">
-        <TextField className="flex-1" label="الكيلومترات" value={value} onChange={setValue} numeric suffix="كم"
+        <TextField className="flex-1" label="طول المسار (كم)" value={value} onChange={setValue} numeric suffix="كم"
           error={value && !ok ? "رقم بخانتين عشريتين على الأكثر" : null} />
-        <Button size="sm" loading={act.busy} disabled={!ok || value.trim() === (km ?? "")} onClick={save}>حفظ</Button>
+        <Button size="sm" loading={act.busy} disabled={!ok || value.trim() === (km ?? "") || calc.busy} onClick={save}>حفظ</Button>
       </div>
+      <div className="flex gap-2 items-center justify-between">
+        {km != null && source === "mapbox" ? <StatusBadge tone="info" icon="map-pin">محسوب من Mapbox</StatusBadge>
+          : km != null ? <StatusBadge tone="neutral" icon="pencil">عدّلته أنت</StatusBadge> : <span />}
+        <Button size="sm" variant="secondary" icon="map-pin" loading={calc.busy} disabled={act.busy} onClick={() => void compute()}>إعادة الحساب</Button>
+      </div>
+      {down === "error" ? (
+        <Note tone="error"><b>تعذّر حساب المسار من Mapbox الآن.</b> اكتب الطول بيدك، أو أعد المحاولة بعد قليل.</Note>
+      ) : down === "no_key" ? (
+        <Note tone="warning"><b>حساب المسار غير مفعّل:</b> مفتاح Mapbox لم يُضبط بعد على الخادم. الإدخال يدوي حتى يُضبط.</Note>
+      ) : (
+        <span className="text-12 text-ink-muted">من نقاط الاستلام بترتيبها إلى الفرع. يُرسل إلى Mapbox الإحداثيات وحدها.</span>
+      )}
     </Section>
   );
 }

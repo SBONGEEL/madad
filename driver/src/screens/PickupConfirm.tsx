@@ -1,15 +1,15 @@
 /**
  * 03 تأكيد الاستلام (M-3، M-22): إثبات الاستلام برمزي QR يمسحه المورد أو برقم المورد أكتبه، ثم لكل صنف
  * «استلمت / نقص / رفض» والمستلم فعلاً، وصورة اختيارية، ثم «تأكيد النقطة» — القاعدة تضع حالة النقطة بنفسها.
- * قبل ذلك (§12-ط): موعد الوصول المكتوب قبل مفتاح الخرائط، و«وصلت إلى نقطة الاستلام» يراه المورد «السائق عندك».
+ * قبل ذلك: موعد الوصول محسوباً من الخرائط أو مكتوباً باليد (§12-ي ن-5)، و«وصلت إلى نقطة الاستلام» يراه المورد «السائق عندك».
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { Button, EmptyState, ErrorState, Icon, LoadingState, Num, OtpInput, StatusBadge, TextField, cx, useLoad } from "@ui/kit";
+import { Button, EmptyState, ErrorState, Icon, LoadingState, Num, OtpInput, StatusBadge, TextField, cx, toast, useLoad } from "@ui/kit";
 import * as fmt from "@ui/fmt";
 import { api } from "@/api/client";
-import type { HandoverOut, Order2Out, Order2SummaryOut, StopLineOut, StopOut } from "@/api/types";
+import type { EtaAutoOut, HandoverOut, Order2Out, Order2SummaryOut, StopLineOut, StopOut } from "@/api/types";
 import { Screen } from "@/lib/shell";
 import { ACTIVE_ORDER, STOP_STATUS, qtyUnit, tripoliTime, tripoliToday, uploadPhoto, useWork, workError } from "@/lib/work-http";
 import { PhotoPick, PickupQr } from "@/lib/work-ui";
@@ -78,7 +78,48 @@ function StopForm({ order, stop, onOrder }: { order: Order2Out; stop: StopOut; o
   const arriveAct = useWork();
   const [eta, setEta] = useState(tripoliTime(stop.eta_at));
   const etaIso = tripoliToday(eta);
+  const [editEta, setEditEta] = useState(false);
+  const [routing, setRouting] = useState<"error" | "no_key" | null>(null);
+  const [locating, setLocating] = useState(false);
+  const autoTried = useRef(false);
   useEffect(() => setProven(stop.handed_over), [stop.handed_over]);
+
+  /** الموعد من الخرائط (§12-ي ن-5): موقع الجهاز الآن ← الخادم يحسبه بـMapbox ولا يحفظ الموقع.
+   * auto: محاولة صامتة عند فتح النقطة بلا موعد؛ فشلها يترك الإدخال اليدوي بلا تنبيه عابر. */
+  async function computeEta(auto = false) {
+    setLocating(true);
+    try {
+      const pos = await here().catch(() => null);
+      if (!pos) {
+        if (!auto) toast("تعذّر تحديد موقعك الآن. اكتب موعد وصولك بيدك.", true);
+        setEditEta(true);
+        return;
+      }
+      const r = await api.post<EtaAutoOut>(`/api/driver/stops/${stop.id}/eta/auto`, pos);
+      if (r.routing.status === "ok") {
+        setRouting(null);
+        setEditEta(false);
+        const s = r.order.stops.find((x) => x.id === stop.id);
+        if (s) setEta(tripoliTime(s.eta_at));
+      } else {
+        setRouting(r.routing.reason === "no_key" ? "no_key" : "error");
+        setEditEta(true);
+      }
+      onOrder(r.order);
+    } catch (e) {
+      if (!auto) toast(workError((e as { code?: string }).code ?? "error", (e as Error).message), true);
+      setEditEta(true);
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  useEffect(() => {
+    if (autoTried.current || stop.status !== "pending" || stop.arrived_at || stop.handed_over || stop.eta_at) return;
+    autoTried.current = true;
+    void geoAllowed().then((ok) => { if (ok) void computeEta(true); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const title = <>استلام — نقطة <Num>{stop.seq}</Num></>;
   const back = `/route/${order.id}`;
@@ -105,7 +146,7 @@ function StopForm({ order, stop, onOrder }: { order: Order2Out; stop: StopOut; o
   async function saveEta() {
     if (!etaIso) return;
     const r = await etaAct.run(() => api.put<Order2Out>(`/api/driver/stops/${stop.id}/eta`, { eta_at: etaIso }), { ok: "حُفظ موعد وصولك." });
-    if (r.v) onOrder(r.v);
+    if (r.v) { onOrder(r.v); setRouting(null); setEditEta(false); }
   }
 
   async function arrive() {
@@ -115,13 +156,56 @@ function StopForm({ order, stop, onOrder }: { order: Order2Out; stop: StopOut; o
 
   // قبل الوصول: الموعد والوصول وحدهما؛ الرمز والأصناف بعد تعليم الوصول (أو إن ثبت التسليم قبله)
   if (!stop.arrived_at && !proven) {
+    const computed = !!stop.eta_at && stop.eta_source === "mapbox" && !editEta;
     return (
       <Screen title={title} back={back}>
         <b className="text-17">{stop.label}{stop.address_text ? <span className="text-14 md-muted font-normal"> · {stop.address_text}</span> : null}</b>
-        <TextField label="موعد وصولك إلى المورد" value={eta} onChange={setEta} numeric icon="clock" placeholder="10:30"
-          error={eta && !etaIso ? "اكتب الساعة هكذا: 10:30" : null}
-          hint={`يراه المورد: «يصل حوالي ${etaIso ? eta.trim() : "…"}». يُحسب آلياً حين يُضبط مفتاح الخرائط`} />
-        <Button variant="secondary" block icon="clock" loading={etaAct.busy} disabled={!etaIso} onClick={saveEta}>حفظ الموعد</Button>
+        {computed ? (
+          <>
+            <div className="md-sec p-3 gap-1.5 text-14">
+              <div className="flex justify-between items-center gap-2">
+                <b>موعد وصولك إلى المورد</b>
+                <StatusBadge tone="info" icon="map-pin">محسوب من الخرائط</StatusBadge>
+              </div>
+              <span className="text-26 font-bold"><Num>{tripoliTime(stop.eta_at)}</Num></span>
+              <span className="md-muted">من موقعك الآن إلى نقطة الاستلام. يراه المورد: «يصل حوالي <Num>{tripoliTime(stop.eta_at)}</Num>».</span>
+            </div>
+            <Button variant="secondary" block icon="pencil" onClick={() => { setEta(tripoliTime(stop.eta_at)); setEditEta(true); }}>تعديل الموعد</Button>
+          </>
+        ) : locating && !stop.eta_at && !editEta ? (
+          <LoadingState rows={1} label="نحسب موعد وصولك من الخرائط…" />
+        ) : (
+          <>
+            {routing ? (
+              <div className="bg-warning-tint rounded-md p-3 text-14 flex flex-col gap-1.5">
+                <b>{routing === "no_key" ? "حساب الموعد غير مفعّل بعد." : "تعذّر حساب الموعد من الخرائط الآن."}</b>
+                <span>اكتب موعد وصولك بيدك، ويراه المورد كما تكتبه.</span>
+              </div>
+            ) : null}
+            <TextField label="موعد وصولك إلى المورد" value={eta} onChange={setEta} numeric icon="clock" placeholder="مثال: 10:30"
+              error={eta && !etaIso ? "اكتب الساعة هكذا: 10:30" : null}
+              hint={stop.eta_source === "mapbox" ? "يحلّ محل الموعد المحسوب، ويراه المورد كما كتبته" : `يراه المورد: «يصل حوالي ${etaIso ? eta.trim() : "…"}»`} />
+            {routing ? (
+              <Button variant="secondary" block icon="clock" loading={etaAct.busy} disabled={!etaIso} onClick={saveEta}>حفظ الموعد</Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button icon="clock" loading={etaAct.busy} disabled={!etaIso} onClick={saveEta}>حفظ الموعد</Button>
+                <Button variant="ghost" icon="map-pin" loading={locating} onClick={() => void computeEta()}>احسبه من الخرائط</Button>
+              </div>
+            )}
+            {stop.eta_at && !routing ? (
+              <div className="md-sec p-3 flex-row justify-between items-center gap-2 text-14">
+                <span>الموعد الحالي</span>
+                <span className="flex items-center gap-2">
+                  <Num>{tripoliTime(stop.eta_at)}</Num>
+                  {stop.eta_source === "mapbox"
+                    ? <StatusBadge tone="info" icon="map-pin">محسوب من الخرائط</StatusBadge>
+                    : <StatusBadge tone="neutral" icon="pencil">كتبته أنت</StatusBadge>}
+                </span>
+              </div>
+            ) : null}
+          </>
+        )}
         <div className="mt-auto flex flex-col gap-2">
           <Button variant="success" block className="md-btn-xl" icon="map-pin" loading={arriveAct.busy} onClick={arrive}>وصلت إلى نقطة الاستلام</Button>
         </div>
@@ -265,4 +349,25 @@ function Choose({ on, tone, onClick, children }: { on: boolean; tone: string; on
       {on ? <Icon name="check" size={16} /> : null}{children}
     </button>
   );
+}
+
+/** موقع الجهاز الآن (إحداثيات وحدها). */
+function here(): Promise<{ lat: number; lng: number }> {
+  return new Promise((ok, fail) => {
+    if (!navigator.geolocation) return fail(new Error("no_geolocation"));
+    navigator.geolocation.getCurrentPosition(
+      (p) => ok({ lat: Number(p.coords.latitude.toFixed(6)), lng: Number(p.coords.longitude.toFixed(6)) }),
+      fail, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+  });
+}
+
+/** يُحاوَل الحساب آلياً عند الفتح ما دام الموقع متاحاً ولم يُرفض إذنه. */
+async function geoAllowed(): Promise<boolean> {
+  if (!navigator.geolocation) return false;
+  try {
+    const st = await navigator.permissions?.query({ name: "geolocation" });
+    return st ? st.state !== "denied" : true;
+  } catch {
+    return true;
+  }
 }

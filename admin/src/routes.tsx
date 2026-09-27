@@ -7,6 +7,7 @@ import type { Perm } from "@/session";
 import { Approvals } from "@/screens/Approvals";
 import { Assign } from "@/screens/Assign";
 import { Audit } from "@/screens/Audit";
+import { Backups } from "@/screens/Backups";
 import { Broadcast } from "@/screens/Broadcast";
 import { Capital } from "@/screens/Capital";
 import { Catalog } from "@/screens/Catalog";
@@ -92,6 +93,7 @@ export const ROUTES: Array<{ path: string; perm: Perm; screen: ComponentType }> 
   { path: "/supplier-pay", perm: "money", screen: SupplierPay },
   { path: "/profit", perm: "costs_view", screen: Profit },
   { path: "/settings", perm: "settings", screen: Settings },
+  { path: "/settings/backups", perm: "settings", screen: Backups },
   { path: "/zones", perm: "settings", screen: Zones },
   { path: "/broadcasts", perm: "notifications", screen: Broadcast },
   { path: "/users", perm: "users", screen: Users },

@@ -2,16 +2,18 @@
 import { Link, useNavigate } from "react-router-dom";
 
 import * as fmt from "@ui/fmt";
-import { Button, DataTable, Icon, Money, Num, OrderStatusBadge, PageHead, Section, StatCard, StatusBadge, useLoad, type Tone } from "@ui/kit";
+import { Button, DataTable, Icon, Money, Note, Num, OrderStatusBadge, PageHead, Section, StatCard, StatusBadge, useLoad, type Tone } from "@ui/kit";
 import type { IconName } from "@ui/icons";
 import { api } from "@/api/client";
-import type { DashboardOut, OrderRowOut } from "@/api/types";
+import type { BackupsOut, DashboardOut, OrderRowOut } from "@/api/types";
 import { downloadCsv } from "@/lib/csv";
 import { useSession } from "@/session";
 
 export function Main() {
   const d = useLoad(() => api.get<DashboardOut>("/api/admin/dashboard"));
-  const { can } = useSession();
+  const { can, isOwner } = useSession();
+  // تنبيه النسخ (§12-ي ن-3): للمالك وحده، يبقى حتى تنجح نسخة
+  const backups = useLoad(() => (isOwner ? api.get<BackupsOut>("/api/admin/backups").catch(() => null) : Promise.resolve(null)), [isOwner]);
   const nav = useNavigate();
   const now = new Date();
   const data = d.data;
@@ -41,6 +43,13 @@ export function Main() {
           <Button variant="secondary" icon="refresh-cw" size="sm" loading={d.loading && !!data} onClick={d.reload}>تحديث</Button>
           <Button icon="file-text" size="sm" onClick={exportCsv} disabled={!data?.latest.length}>تصدير CSV</Button>
         </>} />
+
+      {backups.data?.alert ? (
+        <Note tone={backups.data.alert === "failed" ? "error" : "warning"}>
+          <b>{backups.data.alert === "failed" ? "فشلت النسخة الاحتياطية الأخيرة." : "مرّ يوم بلا نسخة احتياطية ناجحة."}</b>
+          {" "}افتح <Link to="/settings/backups" className="md-link">«النسخ الاحتياطية»</Link>.
+        </Note>
+      ) : null}
 
       <div className="grid grid-cols-5 gap-4">
         <StatCard label="المطاعم والمقاهي" value={fmt.int(data?.customers)} icon="store" />

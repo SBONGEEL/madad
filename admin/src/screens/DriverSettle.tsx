@@ -1,5 +1,5 @@
 /** تسوية السائقين (م-11): الكاش بحوزة كل سائق وأجره المستحق، والتسليم للخزينة (مع مقاصّة الأجر لطريقة «خصم من الكاش»)،
- * وصرف الأجر من الخزينة لطريقة «صرف دوري»، وتعديل الطريقة. */
+ * وصرف الأجر من الخزينة لطريقة «صرف دوري»، وتعديل الطريقة، ودوريته وموعد صرفه من ملفه (§12-ي). */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -10,6 +10,7 @@ import {
 import { api } from "@/api/client";
 import type { DriverSettleOut, HandoverIn, PayMethodIn, PayoutIn } from "@/api/types";
 import { PAY_METHOD, cleanMoney, fromMilli, milli, validMoney } from "@/lib/money-util";
+import { PartyPayout } from "@/lib/payout";
 import { useSession } from "@/session";
 
 function status(d: DriverSettleOut): [string, "error" | "warning" | "success" | "neutral"] {
@@ -55,6 +56,7 @@ export function DriverSettle() {
         <div className="grid grid-cols-2 gap-5 items-start">
           <Handover key={`h${driver.id}`} d={driver} onDone={list.set} />
           {driver.pay_method === "periodic" ? <Payout key={`p${driver.id}`} d={driver} onDone={list.set} /> : null}
+          <PartyPayout kind="driver" id={driver.id} name={driver.full_name} due={driver.wallet_owed} method={<MethodBadge m={driver.pay_method} />} />
         </div>
       ) : null}
     </div>

@@ -6,6 +6,7 @@ import { Button, ConfirmDialog, DataTable, Money, Num, PageHead, Section, Status
 import { api } from "@/api/client";
 import type { SupplierDueOut, SupplierPayoutIn } from "@/api/types";
 import { CYCLE, addDays, cleanMoney, fromMilli, isoDay, milli, validMoney } from "@/lib/money-util";
+import { PartyPayout } from "@/lib/payout";
 
 interface Receipt { supplier: string; amount: string; from: string; to: string; at: string }
 
@@ -13,8 +14,9 @@ function cycleOf(s: SupplierDueOut): [string, number] {
   return (s.payout_cycle && CYCLE[s.payout_cycle]) || ["—", 1];
 }
 
-/** موعد الصرف: بعد آخر صرف بطول الدورية، أو اليوم إن لم يُصرف له بعد. */
+/** موعد الصرف: من الخادم (§12-ي)، وإلا بعد آخر صرف بطول الدورية، أو اليوم إن لم يُصرف له بعد. */
 function dueOn(s: SupplierDueOut, today: string): string {
+  if (s.next_payout_on) return s.next_payout_on.slice(0, 10);
   return s.last_payout ? addDays(isoDay(new Date(s.last_payout)), cycleOf(s)[1]) : today;
 }
 
@@ -58,6 +60,7 @@ export function SupplierPay() {
         <div className="grid grid-cols-2 gap-5 items-start">
           <PayCard key={s.id} s={s} today={today} onDone={(list, r) => { dues.set(list); setReceipt(r); }} />
           <ReceiptCard r={receipt && receipt.supplier === s.name ? receipt : null} />
+          <PartyPayout kind="supplier" id={s.id} name={s.name} due={s.payable} />
         </div>
       ) : null}
     </div>
