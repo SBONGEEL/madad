@@ -235,16 +235,20 @@ def file_name(at: datetime) -> str:
     return "madad-" + at.astimezone(TRIPOLI).strftime("%Y%m%d-%H%M%S") + ".mdbk"
 
 
-async def run_once(db, dsn: str, media_dir: Path, places: Places, passphrase: str, *, log2n: int = 17) -> int:
-    """نسخة واحدة الآن حسب السياسة السارية. تعيد رقم التشغيل؛ الفشل مسجَّل في القاعدة (وتنبيه المالك منها)."""
+async def run_once(db, dsn: str, media_dir: Path, places: Places, passphrase: str, *, log2n: int = 17,
+                   request_id: int | None = None) -> int:
+    """نسخة واحدة الآن حسب السياسة السارية. تعيد رقم التشغيل؛ الفشل مسجَّل في القاعدة (وتنبيه المالك منها).
+    request_id: طلب «إنشاء نسخة الآن» من اللوحة (§12-ك) — نسخة يدوية تُربط بطلبها."""
     async with db.tx("system") as t:
         pol = await t.one("SELECT plan::text AS plan, location::text AS location FROM current_backup_policy()")
         weekly = pol["plan"] == "daily7_weekly12" and not await t.val(
             "SELECT 1 FROM backup_runs WHERE status = 'ok' AND kind = 'weekly' AND date_trunc('week', finished_at "
             "AT TIME ZONE 'Africa/Tripoli') = date_trunc('week', now() AT TIME ZONE 'Africa/Tripoli')")
+        kind = "manual" if request_id else ("weekly" if weekly else "daily")
         rid = await t.val("INSERT INTO backup_runs (kind, plan, location) VALUES (:k, CAST(:p AS backup_plan), "
-                          "CAST(:l AS backup_location)) RETURNING id", k="weekly" if weekly else "daily", **{
-                              "p": pol["plan"], "l": pol["location"]})
+                          "CAST(:l AS backup_location)) RETURNING id", k=kind, p=pol["plan"], l=pol["location"])
+        if request_id:
+            await t.run("UPDATE backup_requests SET run_id = :r WHERE id = :q", r=rid, q=request_id)
     want_local, want_off = pol["location"] in ("local", "both"), pol["location"] in ("offsite", "both")
     places.local_dir.mkdir(parents=True, exist_ok=True)
     name = file_name(datetime.now(timezone.utc))
@@ -281,7 +285,7 @@ async def run_once(db, dsn: str, media_dir: Path, places: Places, passphrase: st
 
 
 KEEP = {("daily30", "daily"): 30, ("daily30", "weekly"): 30, ("daily7_weekly12", "daily"): 7,
-        ("daily7_weekly12", "weekly"): 84}
+        ("daily7_weekly12", "weekly"): 84, ("daily30", "manual"): 30, ("daily7_weekly12", "manual"): 7}
 
 
 async def prune(db, places: Places) -> list[int]:
@@ -302,6 +306,11 @@ async def prune(db, places: Places) -> list[int]:
             await t.run("UPDATE backup_runs SET pruned_at = now() WHERE id = :i", i=r["id"])
         gone.append(r["id"])
     return gone
+
+
+async def pending_request(db) -> int | None:
+    async with db.tx("system") as t:
+        return await t.val("SELECT id FROM backup_requests WHERE run_id IS NULL ORDER BY id LIMIT 1")
 
 
 async def due(db, hour: int) -> bool:

@@ -12,6 +12,9 @@
     "check": "npm run check:types && npm run check:tokens && npm run check:contract"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/geolocation": "^7.1.8",
     "@mapbox/mapbox-gl-rtl-text": "^0.4.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
@@ -23,6 +26,7 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
     "@types/node": "^22.20.4",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",

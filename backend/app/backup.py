@@ -42,11 +42,13 @@ async def _worker(s) -> None:
     places = _places(s)
     while True:
         try:
-            if await backup.due(db, s.backup_hour):
-                await backup.run_once(db, backup.plain_dsn(s.database_url), Path(s.media_dir), places, s.backup_passphrase)
+            req = await backup.pending_request(db)
+            if req or await backup.due(db, s.backup_hour):
+                await backup.run_once(db, backup.plain_dsn(s.database_url), Path(s.media_dir), places, s.backup_passphrase,
+                                      request_id=req)
         except Exception:  # noqa: BLE001 — الخدمة لا تسقط؛ الفشل مسجَّل في القاعدة وينبَّه المالك
             log.exception("backup worker tick failed")
-        await asyncio.sleep(600)
+        await asyncio.sleep(60)   # طلب «نسخة الآن» يُؤخذ خلال دقيقة
 
 
 async def _verify(s, file: Path) -> None:

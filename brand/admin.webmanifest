@@ -1,0 +1,15 @@
+{
+  "name": "مَدَد — لوحة المالك",
+  "short_name": "لوحة مَدَد",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F5F0",
+  "theme_color": "#0F3D3A",
+  "icons": [
+    { "src": "/madad-pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/madad-app-icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

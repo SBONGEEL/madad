@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">مَدَد</string>
+    <string name="title_activity_main">مَدَد</string>
+    <string name="package_name">ly.madad.customer</string>
+    <string name="custom_url_scheme">ly.madad.customer</string>
+</resources>

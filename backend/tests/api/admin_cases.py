@@ -6,7 +6,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.api import test_admin_guards as _guards
 from tests.db.world import act
+
+# §12-ك: صلاحيتان جديدتان في admin_permission. تُعرَّفان للحارس من هنا — موضع حالات اللوحة — فيُمنحهما «المشرف
+# بكل الصلاحيات» ويُفحص بهما، ويُرفض «المشرف بلا صلاحيات» في نقطتيهما، دون تعديل ملف الحارس نفسه.
+_guards.PERMS |= {"backups_run", "backups_view"}
 
 BACKUP_FILE = "madad-20260927-030000.mdbk"   # نسخة ناجحة محلية في العالم ليُنزّلها المالك (§12-ي ن-3)
 
@@ -118,6 +123,8 @@ WRITES = {
     ("PUT", "/api/admin/settings/push-text"): lambda ids: {"mode": "generic"},
     ("PUT", "/api/admin/backups/policy"): lambda ids: {"plan": "daily30", "location": "both"},
     ("POST", "/api/admin/orders/{order_id}/route-km/compute"): lambda ids: {},
+    # §12-ك: صلاحيتا النسخ الاحتياطية (يمنحهما المالك وحده)
+    ("POST", "/api/admin/backups/run"): lambda ids: {},
     # الأمانة (معتمد في §12-ز)
     ("POST", "/api/admin/custody/{custody_id}/decide"): lambda ids: {"fate": "return_supplier"},
 }

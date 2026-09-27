@@ -999,3 +999,24 @@ class RoutingOut(Out):
 class RouteComputeOut(Out):
     routing: RoutingOut
     detail: OrderDetailOut
+
+
+# ——— §12-ك: صلاحيتا النسخ الاحتياطية ———
+class BackupStatusOut(Out):
+    """ما يراه صاحب «عرض حالة النسخ»: الحالة والسجل والتنبيهات — لا تنزيل ولا إعدادات."""
+    plan: str
+    location: str
+    alert: str | None
+    alert_since: datetime | None
+    runs: list[BackupRunOut]
+
+
+class BackupRequestOut(Out):
+    requested_at: datetime
+
+
+class BackupAccessOut(Out):
+    at: datetime
+    who: str
+    action: str           # view | create | download
+    file_name: str | None
