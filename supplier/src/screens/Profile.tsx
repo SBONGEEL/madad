@@ -1,6 +1,6 @@
 /**
  * 07 الملف: المحل والمسؤول والهاتف والحالة ودورية الصرف، وقائمة (المواقع، المستحقات، الإشعارات، خروج).
- * الإشعارات عرض فرعي (?view=notifications). «تواصل مع مَدَد» بلا رقم في القاعدة (NO-DB) فلا يُعرض.
+ * الإشعارات عرض فرعي (?view=notifications). «تواصل مع مَدَد» برقمَي المالك (§12-ط، 27/09).
  * رمز الإشعار الفوري يأتي من غلاف Android (window.MadadPush) حين يوجد؛ نسخة الويب بلا FCM.
  */
 import { useEffect } from "react";
@@ -81,6 +81,13 @@ function Account() {
               <Icon name="chevron-left" size={18} />
             </Link>
           ))}
+          {me.contact?.phone || me.contact?.whatsapp ? (
+            <div className="flex items-center gap-3 py-3.5 px-3 bg-surface border border-border rounded-md">
+              <Icon name="phone" /><span className="flex-1">تواصل مع مَدَد</span>
+              {me.contact.phone ? <a className="md-link" href={`tel:${me.contact.phone}`}>اتصال</a> : null}
+              {me.contact.whatsapp ? <a className="md-link" href={`https://wa.me/${me.contact.whatsapp.replace("+", "")}`} target="_blank" rel="noreferrer">واتساب</a> : null}
+            </div>
+          ) : null}
           <button type="button" onClick={() => void api.logout()}
             className="flex items-center gap-3 py-3.5 px-3 bg-surface border border-border rounded-md text-ink font-sans text-start cursor-pointer w-full">
             <Icon name="log-out" />

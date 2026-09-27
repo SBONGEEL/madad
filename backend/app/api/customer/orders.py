@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from app.api.customer.common import member, order_access
 from app.api.deps import Principal, customer_user
 from app.core.db import Tx
-from app.schemas.customer import (BatchOut, CartQtyIn, DisputeIn, DisputeOut, DriverCardOut, EventOut, Order2Out,
+from app.schemas.customer import (BatchOut, CancelIn, CartQtyIn, DisputeIn, DisputeOut, DriverCardOut, EventOut, Order2Out,
                                   Order2SummaryOut, OrderLineOut, OrderOut, ReorderOut)
 from app.services import documents
 
@@ -40,7 +40,8 @@ async def _driver(t: Tx, order_id: int) -> DriverCardOut | None:
 async def load_order2(t: Tx, order_id: int) -> Order2Out:
     oid = await order_access(t, order_id)
     o = await t.one("SELECT id, status::text AS status, placed_at, delivered_at, branch_id, branch_name, dest_address, "
-                    "notes, subtotal, delivery_fee, total, amount_due FROM v_customer_orders WHERE id = :o", o=oid)
+                    "notes, subtotal, delivery_fee, total, amount_due, recipient_name, customer_can_cancel(id) AS cancellable "
+                    "FROM v_customer_orders WHERE id = :o", o=oid)
     # السجل بحالاته وأوقاته وحدها — لا من غيّرها
     ev = await t.all("SELECT to_status::text AS status, at FROM order_status_events WHERE order_id = :o ORDER BY id", o=oid)
     # الدفعات (§4.3) بما أُبلغ العميل به في إشعارها: الأصناف والكميات والموعد
@@ -144,3 +145,15 @@ async def open_dispute(order_id: int, body: DisputeIn, request: Request, p: Prin
             await t.run("INSERT INTO dispute_media (dispute_id, media_id) VALUES (:d, :m)", d=did, m=mid)
         return await _disputes(t, oid)
 
+
+
+
+@router.post("/orders/{order_id}/cancel", response_model=Order2Out)
+async def cancel(order_id: int, body: CancelIn, request: Request, p: Principal = Depends(customer_user)) -> Order2Out:
+    """§12-ط وم-7: حسب الإعداد المُلتقط في الطلبية وحالتها؛ القاعدة ترفض ما عداه (invalid_transition)."""
+    async with request.app.state.db.tx("customer", p.user_id) as t:
+        await member(t, p.user_id)
+        oid = await order_access(t, order_id)
+        await t.run("UPDATE orders SET status = 'cancelled', cancel_reason = :r WHERE id = :o",
+                    r=(body.reason or "").strip() or "أُلغيت من تطبيق العميل", o=oid)
+        return await load_order2(t, oid)

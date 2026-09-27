@@ -44,7 +44,7 @@ async def pickups(request: Request, p: Principal = Depends(supplier_user)) -> li
         rows_ = await t.all("""
 SELECT v.id, st.seq, v.status::text AS status, v.supplier_code, l.label AS location_label, v.assigned_at, v.handed_over,
        h.method::text AS handover_method, h.created_at AS handed_over_at,
-       v.product_name, v.unit::text AS unit, v.unit_size, v.planned_qty, v.collected_qty
+       v.product_name, v.unit::text AS unit, v.unit_size, v.planned_qty, v.collected_qty, v.eta_at, v.arrived_at
   FROM v_supplier_pickups v JOIN pickup_stops st ON st.id = v.id
   JOIN supplier_pickup_locations l ON l.id = v.pickup_location_id
   LEFT JOIN pickup_handovers h ON h.stop_id = v.id
@@ -54,7 +54,7 @@ SELECT v.id, st.seq, v.status::text AS status, v.supplier_code, l.label AS locat
         pk = out.get(r["id"]) or out.setdefault(r["id"], Pickup2Out(
             id=r["id"], seq=r["seq"], status=r["status"], supplier_code=r["supplier_code"], location_label=r["location_label"],
             assigned_at=r["assigned_at"], handed_over=r["handed_over"], handover_method=r["handover_method"],
-            handed_over_at=r["handed_over_at"], lines=[]))
+            handed_over_at=r["handed_over_at"], lines=[], eta_at=r["eta_at"], arrived_at=r["arrived_at"]))
         pk.lines.append(PickupLineOut(product_name=r["product_name"], unit=r["unit"], unit_size=r["unit_size"],
                                       planned_qty=r["planned_qty"], collected_qty=r["collected_qty"]))
     return list(out.values())
@@ -89,6 +89,7 @@ async def _dues(t: Tx, cycle: str | None) -> DuesOut:
     pays = await t.all("SELECT id, amount, period_start, period_end, paid_at, receipt_ready FROM v_supplier_payouts "
                        "ORDER BY paid_at DESC LIMIT 24")
     return DuesOut(due=await t.val("SELECT supplier_own_due()"), payout_cycle=cycle,
+                   next_payout_on=await t.val("SELECT supplier_next_payout(actor_supplier())"),
                    received=[ReceivedOut(**r) for r in got], payouts=[PayoutOut(**r) for r in pays])
 
 

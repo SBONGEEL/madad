@@ -16,7 +16,7 @@ from app.api.driver.core import driver
 from app.core.db import Tx
 from app.core.errors import ApiError
 from app.schemas.common import HandoverOut
-from app.schemas.driver import (AvailableOut, BatchIn, BatchTimesIn, BatchOut, CodeIn, ConfirmStopIn, CustodyItemOut, DisputeIn,
+from app.schemas.driver import (EtaIn, AvailableOut, BatchIn, BatchTimesIn, BatchOut, CodeIn, ConfirmStopIn, CustodyItemOut, DisputeIn,
                                 DisputeOut, ItemOut, Order2Out, Order2SummaryOut, OrderOut, PayOfferIn, StopLineOut,
                                 StopOut)
 from app.services import documents
@@ -77,9 +77,9 @@ async def orders(request: Request, p: Principal = Depends(driver_user)) -> list[
 async def _stops(t: Tx, order_id: int) -> list[StopOut]:
     stops = await t.all(
         "SELECT s.id, s.seq, l.pickup_label AS label, s.status::text AS status, s.lat, s.lng, s.address_text, "
-        "s.pickup_code, EXISTS (SELECT 1 FROM pickup_handovers h WHERE h.stop_id = s.id) AS handed_over "
-        "FROM v_driver_stops s JOIN v_driver_stop_labels l ON l.stop_id = s.id WHERE s.order_id = :o "
-        "ORDER BY s.seq", o=order_id)
+        "s.pickup_code, EXISTS (SELECT 1 FROM pickup_handovers h WHERE h.stop_id = s.id) AS handed_over, "
+        "ps.eta_at, ps.arrived_at FROM v_driver_stops s JOIN v_driver_stop_labels l ON l.stop_id = s.id "
+        "JOIN pickup_stops ps ON ps.id = s.id WHERE s.order_id = :o ORDER BY s.seq", o=order_id)
     lines = await t.all("SELECT id, stop_id, name_ar, unit::text AS unit, unit_size, planned_qty, collected_qty "
                         "FROM v_driver_stop_lines WHERE stop_id IN (SELECT id FROM pickup_stops WHERE order_id = :o) "
                         "ORDER BY id", o=order_id)
@@ -91,7 +91,7 @@ async def load_order2(t: Tx, d: dict, order_id: int) -> Order2Out:
     o = await t.one(
         "SELECT v.id, v.status::text AS status, v.customer_name, v.customer_phone, v.branch_name, v.dest_address, v.dest_lat, "
         "v.dest_lng, v.amount_to_collect, o.delivery_fee, v.driver_pay, v.collection_mode::text AS collection_mode, o.route_km, "
-        "v.load_kg, v.weight_complete, v.capacity_kg, v.over_capacity FROM v_driver_orders v JOIN orders o ON o.id = v.id "
+        "v.load_kg, v.weight_complete, v.capacity_kg, v.over_capacity, v.recipient_name FROM v_driver_orders v JOIN orders o ON o.id = v.id "
         "WHERE v.id = :o AND v.driver_id = :d", o=order_id, d=d["id"])
     if o is None:
         raise ApiError(404, "order_not_found")
@@ -278,3 +278,27 @@ async def custody(request: Request, p: Principal = Depends(driver_user)) -> list
         got = await t.all("SELECT id, order_id, name_ar, unit::text AS unit, unit_size, qty, status::text AS status "
                           "FROM v_driver_custody WHERE driver_id = :d ORDER BY id", d=d["id"])
     return [CustodyItemOut(**r) for r in got]
+
+
+
+# ——— §12-ط: موعد الوصول للمورد و«وصلت» (يراهما المورد بلا شيء عن العميل) ——————————————————————
+@router.put("/stops/{stop_id}/eta", response_model=Order2Out)
+async def stop_eta(stop_id: int, body: EtaIn, request: Request, p: Principal = Depends(driver_user)) -> Order2Out:
+    """يكتبه السائق قبل مفتاح الخرائط (يُحسب آلياً حين يُضبط). يبدأ التجميع إن لم يبدأ."""
+    async with request.app.state.db.tx("driver", p.user_id) as t:
+        d = await driver(t, p.user_id)
+        oid = await _stop_order(t, d, stop_id)
+        await _start(t, oid)
+        await t.run("UPDATE pickup_stops SET eta_at = :e WHERE id = :s", e=body.eta_at, s=stop_id)
+        return await load_order2(t, d, oid)
+
+
+@router.post("/stops/{stop_id}/arrive", response_model=Order2Out)
+async def arrive(stop_id: int, request: Request, p: Principal = Depends(driver_user)) -> Order2Out:
+    """«وصلت إلى نقطة الاستلام»: وقته من القاعدة، ومرة واحدة (stop_already_arrived)."""
+    async with request.app.state.db.tx("driver", p.user_id) as t:
+        d = await driver(t, p.user_id)
+        oid = await _stop_order(t, d, stop_id)
+        await _start(t, oid)
+        await t.run("UPDATE pickup_stops SET arrived_at = now() WHERE id = :s", s=stop_id)
+        return await load_order2(t, d, oid)

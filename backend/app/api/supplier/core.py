@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFil
 from app.api.deps import Principal, supplier_user
 from app.core.db import Tx
 from app.core.errors import ApiError
-from app.schemas.supplier import (CategoryOut, DashboardOut, DeviceIn, MediaOut, Me2Out, NotificationOut, ProductOut,
+from app.schemas.supplier import (ContactOut, CategoryOut, DashboardOut, DeviceIn, MediaOut, Me2Out, NotificationOut, ProductOut,
                                   ProposalIn, ProposalOut, ReadIn, RegistrationIn, SupplierOut)
 from app.services.media import PUBLIC, PURPOSES
 
@@ -33,7 +33,9 @@ async def me(request: Request, p: Principal = Depends(supplier_user)) -> Me2Out:
         name = await t.val("SELECT full_name FROM app_users WHERE id = :u", u=p.user_id)
         unread = await t.val("SELECT count(*) FROM notifications WHERE user_id = :u AND read_at IS NULL", u=p.user_id)
         s = await t.one(SUPPLIER_SQL, u=p.user_id)
-    return Me2Out(full_name=name, unread=unread,
+        c = await t.one("SELECT contact_phone AS phone, contact_whatsapp AS whatsapp FROM city_settings WHERE city = :c",
+                        c=request.app.state.settings.auth_city)
+    return Me2Out(full_name=name, unread=unread, contact=ContactOut(**c) if c else None,
                   supplier=SupplierOut(**{k: v for k, v in s.items() if k != "city"}) if s else None)
 
 
@@ -80,7 +82,9 @@ SELECT coalesce((SELECT sum(amount) FROM v_supplier_received
        (SELECT count(DISTINCT s.id) FROM pickup_stops s JOIN orders o ON o.id = s.order_id
          WHERE s.supplier_id = actor_supplier() AND s.status = 'pending'
            AND o.status IN ('assigned', 'collecting')) AS pickups_today,
-       supplier_own_due() AS due""")
+       supplier_own_due() AS due, supplier_next_payout(actor_supplier()) AS next_payout_on,
+       (SELECT min(s.eta_at) FROM pickup_stops s WHERE s.supplier_id = actor_supplier() AND s.status = 'pending'
+          AND s.eta_at IS NOT NULL) AS first_eta""")
     return DashboardOut(**row)
 
 

@@ -11,10 +11,10 @@ from tests.db.test_isolation import FORBIDDEN_COLUMNS
 
 # يُحدَّث يدوياً مع كل مسار، بعد مراجعة المسارات وحرّاسها.
 EXPECTED_OPERATIONS = {
-    "customer": 34,   # me · categories · catalog · orders · order · receipt.pdf
+    "customer": 37,   # me · categories · catalog · orders · order · receipt.pdf
     "supplier": 22,   # me · pickups · scan · slip.pdf
-    "driver": 25,     # me · orders · order · code · sheet.pdf
-    "admin": 88,      # visibility (قراءة/كتابة) · capital (قراءة/كتابة) · order costs · me
+    "driver": 28,     # me · orders · order · code · sheet.pdf
+    "admin": 94,      # visibility (قراءة/كتابة) · capital (قراءة/كتابة) · order costs · me
     "auth": 10,       # register start/verify/complete · login · refresh · logout
 }
 

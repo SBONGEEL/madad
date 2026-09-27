@@ -55,6 +55,7 @@ export function ItemPricing() {
   const item = p.item;
   const seesCosts = can("costs_view") && p.mode !== undefined;
   const unitWord = UNIT[item.unit] ?? item.unit;
+  const cogsLabel = settings.data?.cogs_method === "fifo" ? "الأقدم أولاً" : "متوسط سعر الشراء";
   const first = p.sources_detail[0];
   const prices = p.sources_detail.map((s) => s.purchase_price).filter((x): x is string => x != null);
   const maxBuy = prices.length ? prices.reduce((m, x) => (Number(x) > Number(m) ? x : m)) : null;
@@ -158,6 +159,9 @@ export function ItemPricing() {
 
           <Section title="التكلفة">
             <div className="flex justify-between text-14"><span>أعلى سعر شراء بين المصادر</span><b className="md-num">{maxBuy != null ? fmt.money(maxBuy) : "—"}</b></div>
+            {p.warehouse_cost != null ? (
+              <div className="flex justify-between text-14"><span>تكلفة المخزن ({p.warehouse_cost_mode === "manual" ? "يدوي" : `تلقائي — ${cogsLabel}`})</span><b className="md-num">{fmt.money(p.warehouse_cost)}</b></div>
+            ) : null}
             <div className="flex justify-between text-15 border-t border-border pt-2"><span>التكلفة المرجعية</span><b className="md-num">{p.cost_ref != null ? fmt.money(p.cost_ref) : "—"}</b></div>
             <span className="text-13 font-bold mt-1.5">أساس التكلفة لهذا الصنف</span>
             <OptionGroup value={basis} onChange={setBasis} options={[
@@ -174,6 +178,8 @@ export function ItemPricing() {
           <div className="md-kv"><span className="md-muted">السعر المعروض الآن للعميل</span>{item.sale_price != null ? <Money value={item.sale_price} /> : "—"}</div>
         </Section>
       )}
+
+      {seesCosts ? <WarehouseCostCard p={p} cogs={cogsLabel} onSaved={(v) => d.set(v)} /> : null}
 
       <Section title="المصادر" right={can("catalog") ? <Button size="sm" variant="secondary" icon="plus" onClick={() => setAdding(true)}>إضافة مصدر</Button> : null}>
         <DataTable<SourceOut> rows={p.sources_detail} rowKey={(s) => s.offer_id}
@@ -263,5 +269,37 @@ function AddSourceDialog({ open, itemId, nextPriority, onClose, onAdded }: {
         <Button variant="ghost" block onClick={onClose}>إلغاء</Button>
       </div>
     </Dialog>
+  );
+}
+
+/** م-28: تكلفة الصنف في مخزن مَدَد — تلقائي (بطريقة تقرير الربح م-12) أو يدوي. اليدوي بلا تكلفة لا يُعرض للبيع (القاعدة). */
+function WarehouseCostCard({ p, cogs, onSaved }: { p: ItemPricingOut; cogs: string; onSaved: (v: ItemPricingOut) => void }) {
+  const act = useAction();
+  const [mode, setMode] = useState(p.warehouse_cost_mode ?? "auto");
+  const [cost, setCost] = useState(p.warehouse_manual_cost ?? "");
+  useEffect(() => { setMode(p.warehouse_cost_mode ?? "auto"); setCost(p.warehouse_manual_cost ?? ""); }, [p]);
+  const bad = mode === "manual" && cost.trim() !== "" && !fmt.isMoney(cost);
+  const changed = mode !== (p.warehouse_cost_mode ?? "auto") || (mode === "manual" && cost.trim() !== (p.warehouse_manual_cost ?? ""));
+  async function save() {
+    const body = mode === "manual" ? { mode, manual_cost: cost.trim() || null } : { mode };
+    const v = await act.run(() => api.put<ItemPricingOut>(`/api/admin/catalog/${p.item.id}/warehouse-cost`, body), "حُفظت تكلفة المخزن");
+    if (v) onSaved(v);
+  }
+  return (
+    <Section title="تكلفة الصنف في مخزن مَدَد" right={<StatusBadge tone="neutral">M-28</StatusBadge>}>
+      <OptionGroup value={mode} onChange={setMode} disabled={act.busy} options={[
+        { value: "auto", label: "تلقائي", initial: true,
+          sub: `مما دفعته في بضاعة المخزن، بطريقة تقرير الربح المختارة (الآن: ${cogs})${p.warehouse_cost != null && p.warehouse_cost_mode !== "manual" ? ` = ${fmt.money(p.warehouse_cost)}` : ""}` },
+        { value: "manual", label: "يدوي", sub: "تكتب التكلفة بيدك لهذا الصنف." },
+      ]} />
+      {mode === "manual" ? (
+        <TextField label="التكلفة اليدوية" value={cost} onChange={setCost} numeric suffix="د.ل" placeholder="اكتبها ليُعرض الصنف للبيع"
+          error={bad ? "المبلغ بثلاث خانات عشرية على الأكثر" : null} />
+      ) : null}
+      {mode === "manual" && !cost.trim() ? <Note tone="warning">صنف «يدوي» بلا تكلفة مكتوبة لا يُعرض للبيع حتى تكتبها.</Note> : null}
+      {p.warehouse_cost_missing ? <Note tone="error">الصنف موقوف الآن: تكلفته اليدوية غير مكتوبة.</Note> : null}
+      <span className="text-12 text-ink-muted">يُباع من الموردين والمخزن معاً: التكلفة المرجعية هي الأعلى بينهما.</span>
+      <div><Button size="sm" icon="check" loading={act.busy} disabled={!changed || bad} onClick={save}>حفظ</Button></div>
+    </Section>
   );
 }

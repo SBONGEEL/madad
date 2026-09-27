@@ -10,7 +10,7 @@ from app.api.admin.common import P, city, sees_costs
 from app.api.deps import Principal, admin_user
 from app.core.db import Tx
 from app.core.errors import ApiError
-from app.schemas.admin import (CatalogNewIn, CatalogPatchIn, CatalogRowOut, CategoryIn, CategoryNodeOut, CategoryPatchIn,
+from app.schemas.admin import (WarehouseCostIn, CatalogNewIn, CatalogPatchIn, CatalogRowOut, CategoryIn, CategoryNodeOut, CategoryPatchIn,
                                CompareOut, ItemPricingOut, OfferOut, PriceChangeOut, PricingIn, ProductOut, ProposalDecisionIn,
                                ProposalOut, SourceIn, SourceOut, SupplierDetailOut, SupplierRowOut)
 
@@ -52,8 +52,9 @@ async def catalog(request: Request, category_id: int | None = None, needs_review
 async def _pricing(t: Tx, item_id: int) -> ItemPricingOut:
     item = await _row(t, item_id)
     pr = await t.one("SELECT mode::text AS mode, margin_value, manual_price, reprice_override, "
-                     "cost_basis_override::text AS cost_basis_override FROM catalog_item_pricing "
-                     "WHERE catalog_item_id = :i", i=item_id) or {}
+                     "cost_basis_override::text AS cost_basis_override, warehouse_cost_mode::text AS warehouse_cost_mode, "
+                     "warehouse_manual_cost FROM catalog_item_pricing WHERE catalog_item_id = :i", i=item_id) or {}
+    wc = await t.one("SELECT cost, missing FROM item_warehouse_cost(:i)", i=item_id)
     sources = await t.all(
         "SELECT o.id AS offer_id, s.priority, sp.name AS supplier_name, o.status::text AS status, "
         "greatest(o.available_qty, 0) AS available_qty, o.purchase_price FROM catalog_item_sources s "
@@ -76,7 +77,10 @@ SELECT * FROM (
                           sources_detail=[SourceOut(**s) for s in sources],
                           history=[PriceChangeOut(**h) for h in hist],
                           mode=pr.get("mode"), margin_value=pr.get("margin_value"),
-                          manual_price=pr.get("manual_price"), cost_ref=item.cost_ref)
+                          manual_price=pr.get("manual_price"), cost_ref=item.cost_ref,
+                          warehouse_cost_mode=pr.get("warehouse_cost_mode", "auto"),
+                          warehouse_manual_cost=pr.get("warehouse_manual_cost"),
+                          warehouse_cost=wc["cost"] if wc else None, warehouse_cost_missing=wc["missing"] if wc else None)
 
 
 @router.get("/catalog/{item_id}", response_model=ItemPricingOut, **P("catalog"))
@@ -262,3 +266,20 @@ async def decide_proposal(product_id: int, body: ProposalDecisionIn, request: Re
                     "category_id = coalesce(:c, category_id) WHERE id = :p AND status = 'proposed'",
                     s="approved" if body.decision == "approve" else "rejected", c=body.category_id, p=product_id)
     return await proposals(request, p)
+
+
+@router.put("/catalog/{item_id}/warehouse-cost", response_model=ItemPricingOut, **P("costs_view"))
+async def warehouse_cost(item_id: int, body: WarehouseCostIn, request: Request,
+                         p: Principal = Depends(admin_user)) -> ItemPricingOut:
+    """م-28: تلقائي (مما دُفع في بضاعة المخزن بطريقة م-12) أو يدوي. اليدوي بلا تكلفة لا يُعرض للبيع (cost_missing)،
+    والتكلفة المرجعية للصنف المشترك هي الأعلى بين المخزن والموردين — كله في القاعدة."""
+    if body.mode == "auto" and body.manual_cost is not None:
+        raise ApiError(422, "manual_cost_for_manual_only")
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        done = await t.val("UPDATE catalog_item_pricing SET warehouse_cost_mode = CAST(:m AS warehouse_cost_mode), "
+                           "warehouse_manual_cost = :c WHERE catalog_item_id = :i RETURNING catalog_item_id",
+                           m=body.mode, c=body.manual_cost, i=item_id)
+        if not done:
+            await t.run("INSERT INTO catalog_item_pricing (catalog_item_id, mode, warehouse_cost_mode, warehouse_manual_cost) "
+                        "VALUES (:i, 'manual', CAST(:m AS warehouse_cost_mode), :c)", i=item_id, m=body.mode, c=body.manual_cost)
+        return await _pricing(t, item_id)

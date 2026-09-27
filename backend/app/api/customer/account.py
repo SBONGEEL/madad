@@ -43,8 +43,8 @@ async def register(body: RegistrationIn, request: Request, p: Principal = Depend
 
 
 # ——— الفروع (م-9) ————————————————————————————————————————————————————————————————
-BRANCH_SQL = ("SELECT id, name, address_text, lat, lng, zone_id, zone_name, status::text AS status, active "
-              "FROM v_customer_branches")
+BRANCH_SQL = ("SELECT id, name, address_text, lat, lng, zone_id, zone_name, status::text AS status, active, "
+              "default_recipient FROM v_customer_branches")
 
 
 async def _branches(t: Tx) -> list[BranchOut]:
@@ -62,9 +62,10 @@ async def branches(request: Request, p: Principal = Depends(customer_user)) -> l
 async def add_branch(body: BranchIn, request: Request, p: Principal = Depends(customer_user)) -> list[BranchOut]:
     async with request.app.state.db.tx("customer", p.user_id) as t:
         m = await member(t, p.user_id)
-        await t.run("INSERT INTO customer_locations (customer_id, city, name, lat, lng, zone_id, address_text) "
-                    "VALUES (:c, :city, :n, :lat, :lng, :z, :a)", c=m["id"], city=m["city"], n=body.name.strip(),
-                    lat=body.lat, lng=body.lng, z=body.zone_id, a=body.address_text.strip())
+        await t.run("INSERT INTO customer_locations (customer_id, city, name, lat, lng, zone_id, address_text, "
+                    "default_recipient) VALUES (:c, :city, :n, :lat, :lng, :z, :a, :r)", c=m["id"], city=m["city"],
+                    n=body.name.strip(), lat=body.lat, lng=body.lng, z=body.zone_id, a=body.address_text.strip(),
+                    r=(body.default_recipient or "").strip() or None)
         return await _branches(t)
 
 
@@ -75,9 +76,9 @@ async def edit_branch(branch_id: int, body: BranchIn, request: Request, p: Princ
         await member(t, p.user_id)
         if not await t.val("SELECT 1 FROM v_customer_branches WHERE id = :b", b=branch_id):
             raise ApiError(404, "branch_missing")
-        await t.run("UPDATE customer_locations SET name = :n, lat = :lat, lng = :lng, zone_id = :z, address_text = :a "
-                    "WHERE id = :b", n=body.name.strip(), lat=body.lat, lng=body.lng, z=body.zone_id,
-                    a=body.address_text.strip(), b=branch_id)
+        await t.run("UPDATE customer_locations SET name = :n, lat = :lat, lng = :lng, zone_id = :z, address_text = :a, "
+                    "default_recipient = :r WHERE id = :b", n=body.name.strip(), lat=body.lat, lng=body.lng, z=body.zone_id,
+                    a=body.address_text.strip(), r=(body.default_recipient or "").strip() or None, b=branch_id)
         return await _branches(t)
 
 

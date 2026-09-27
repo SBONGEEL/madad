@@ -47,10 +47,16 @@ class SupplierOut(Out):
     payout_cycle: str | None
 
 
+class ContactOut(Out):
+    phone: str | None
+    whatsapp: str | None
+
+
 class Me2Out(Out):
     full_name: str
     supplier: SupplierOut | None
     unread: int
+    contact: ContactOut | None = None     # §12-ط: «تواصل مع مَدَد»
 
 
 class MediaOut(Out):
@@ -95,6 +101,8 @@ class DashboardOut(Out):
     active_offers: int
     pickups_today: int
     due: Money
+    next_payout_on: date | None = None     # §12-ط: من دوريته وآخر صرف له
+    first_eta: datetime | None = None      # §12-ط: أقرب موعد وصول سائق لنقطة معلّقة
 
 
 class CategoryOut(Out):
@@ -177,6 +185,8 @@ class Pickup2Out(Out):
     handover_method: str | None
     handed_over_at: datetime | None
     lines: list[PickupLineOut]
+    eta_at: datetime | None = None         # §12-ط: موعد وصول السائق (يكتبه قبل مفتاح الخرائط)
+    arrived_at: datetime | None = None     # «السائق عندك»
 
 
 class ReceivedOut(Out):
@@ -202,6 +212,7 @@ class PayoutOut(Out):
 class DuesOut(Out):
     due: Money
     payout_cycle: str | None
+    next_payout_on: date | None = None
     received: list[ReceivedOut]
     payouts: list[PayoutOut]
 

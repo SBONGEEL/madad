@@ -2,7 +2,7 @@
 وحدها، وحين يُغلقه المالك (م-2) تحمل «نقطة استلام N»، فلا يخرج الاسم أصلاً."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
@@ -37,6 +37,8 @@ class StopOut(Out):
     pickup_code: str          # يُعرض رمز QR ليمسحه المورد (م-3)
     handed_over: bool
     lines: list[StopLineOut]
+    eta_at: datetime | None = None       # §12-ط: موعد وصوله للمورد
+    arrived_at: datetime | None = None   # «وصلت» — يراه المورد «السائق عندك»
 
 
 class OrderSummaryOut(Out):
@@ -83,13 +85,28 @@ class DriverOut(Out):
     capacity_kg: Decimal | None
     phone: str
     city_name: str
-    documents_complete: bool   # قرار المالك 27/09: حالة الأوراق وحدها، بلا صورها
+    documents_complete: bool
+    accepting: bool = True     # §12-ط: «أستقبل طلبيات الآن»   # قرار المالك 27/09: حالة الأوراق وحدها، بلا صورها
+
+
+class ContactOut(Out):
+    phone: str | None
+    whatsapp: str | None
 
 
 class Me2Out(Out):
     full_name: str
     driver: DriverOut | None
     unread: int
+    contact: ContactOut | None = None
+
+
+class AvailabilityIn(BaseModel):
+    accepting: bool
+
+
+class EtaIn(BaseModel):
+    eta_at: datetime
 
 
 class MediaOut(Out):
@@ -175,6 +192,7 @@ class Order2Out(Out):
     stops: list[StopOut]
     items: list[ItemOut]
     batches: list[BatchOut]
+    recipient_name: str | None = None    # §12-ط: مستلم الطلبية في الفرع
 
 
 class Order2SummaryOut(Out):
@@ -235,6 +253,9 @@ class WalletOut(Out):
     wage_due: Money
     pay_method: str | None
     handover_due: Money
+    # §12-ط: الصرف القادم. المقاصّة: عند تسليمك القادم للكاش. الدوري: بانتظار قرار دوريته (null)
+    next_payout_on: date | None = None
+    next_payout_rule: str | None = None
 
 
 class SettlementOut(Out):

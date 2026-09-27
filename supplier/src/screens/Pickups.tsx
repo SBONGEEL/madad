@@ -21,7 +21,11 @@ const STATUS: Record<string, [string, Tone]> = {
 };
 
 function badge(p: Pickup2Out): [string, Tone] {
-  if (p.status === "pending") return p.handed_over ? ["سُلِّم", "success"] : ["بانتظار التسليم", "warning"];
+  if (p.status === "pending") {
+    if (p.handed_over) return ["سُلِّم", "success"];
+    if (p.arrived_at) return ["السائق عندك", "info"];                  // §12-ط: السائق علّم الوصول
+    return ["بانتظار التسليم", "warning"];
+  }
   return STATUS[p.status] ?? [p.status, "neutral"];
 }
 
@@ -70,6 +74,8 @@ function StopList({ stops }: { stops: Pickup2Out[] }) {
             <span className="text-13 text-ink-muted">
               {p.lines.map((l) => `${l.product_name} ${lineQty(l.collected_qty ?? l.planned_qty, l.unit, l.unit_size)}`).join(" · ")}
             </span>
+            {p.status === "pending" && !p.handed_over && !p.arrived_at && p.eta_at
+              ? <span className="text-13 font-bold">يصل حوالي <Num>{fmt.time(p.eta_at)}</Num></span> : null}
             {p.assigned_at ? <span className="text-12 text-ink-muted">طُلب <Num>{fmt.dateTime(p.assigned_at)}</Num></span> : null}
           </button>
         );
@@ -147,6 +153,10 @@ function Stop({ id, list, loading, error, reload }: {
           <span className="text-15 flex items-center gap-1.5"><Icon name="map-pin" size={18} />{stop.location_label}</span>
           <StatusBadge tone={tone}>{label}</StatusBadge>
         </div>
+        {stop.status === "pending" && !stop.handed_over ? (
+          stop.arrived_at ? <Note tone="info"><b>السائق عندك</b> — وصل <Num>{fmt.time(stop.arrived_at)}</Num>.</Note>
+            : stop.eta_at ? <span className="text-14">اليوم حوالي <Num>{fmt.time(stop.eta_at)}</Num></span> : null
+        ) : null}
         <DataTable columns={cols} rows={stop.lines} rowKey={(_, i) => i} />
 
         {open ? (

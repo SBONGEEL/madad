@@ -36,7 +36,8 @@ async def _detail(t: Tx, list_id: int) -> ListDetailOut:
         raise ApiError(404, "list_not_found")
     lines = await t.all("""
 SELECT li.catalog_item_id, ci.name_ar, ci.unit::text AS unit, ci.unit_size, li.qty, v.sale_price,
-       coalesce(v.orderable, false) AS orderable, ci.category_id
+       coalesce(v.orderable, false) AS orderable, ci.category_id,
+       EXISTS (SELECT 1 FROM stock_alerts a WHERE a.catalog_item_id = ci.id AND a.user_id = actor_id()) AS alert
   FROM recurring_list_items li JOIN catalog_items ci ON ci.id = li.catalog_item_id
   LEFT JOIN v_customer_catalog v ON v.id = ci.id
  WHERE li.list_id = :l ORDER BY ci.name_ar""", l=list_id)

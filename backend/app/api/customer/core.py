@@ -24,7 +24,7 @@ async def me(request: Request, p: Principal = Depends(customer_user)) -> Me2Out:
             return Me2Out(full_name=name, customer=None, member=None, context=None, unread=unread)
         ctx = await t.one(
             "SELECT ci.name_ar AS city_name, cs.oversell_policy::text AS oversell_policy, cs.min_order_amount, "
-            "cs.min_order_lines, customer_credit_available(:c) AS credit FROM cities ci JOIN city_settings cs ON cs.city = ci.code "
+            "cs.min_order_lines, customer_credit_available(:c) AS credit, cs.contact_phone, cs.contact_whatsapp FROM cities ci JOIN city_settings cs ON cs.city = ci.code "
             "WHERE ci.code = :city", c=c["id"], city=c["city"])
     return Me2Out(full_name=name, customer=CustomerOut(id=c["id"], name=c["name"], status=c["status"]),
                   member=MemberOut(role=c["role"], branch_id=c["branch_id"]),
@@ -59,7 +59,8 @@ SELECT v.id, v.category_id, v.name_ar, v.name_en, v.unit::text AS unit, v.unit_s
        v.out_of_stock, v.image_media_id,
        (SELECT oi.qty FROM order_items oi JOIN v_customer_orders o ON o.id = oi.order_id
          WHERE o.status = 'draft' AND o.branch_id = :branch AND oi.catalog_item_id = v.id) AS cart_qty,
-       CASE WHEN cs.oversell_policy = 'forbid' THEN item_available_qty(v.id) END AS available_qty
+       CASE WHEN cs.oversell_policy = 'forbid' THEN item_available_qty(v.id) END AS available_qty,
+       EXISTS (SELECT 1 FROM stock_alerts a WHERE a.catalog_item_id = v.id AND a.user_id = actor_id()) AS alert
   FROM v_customer_catalog v JOIN city_settings cs ON cs.city = v.city
 """
 
@@ -121,3 +122,31 @@ async def upload(request: Request, purpose: str = Form(...), file: UploadFile = 
         mid = await t.val("INSERT INTO media_files (storage_key, mime_type, byte_size, sha256, is_private) "
                           "VALUES (:k, :m, :s, :h, :pv) RETURNING id", k=key, m=mime, s=size, h=sha, pv=purpose not in PUBLIC)
     return MediaOut(id=mid)
+
+
+
+# ——— §12-ط: «نبّهني حين يتوفر» — على الصنف النافد وحده، ويُلغى بعد إرسال إشعاره مرة (القاعدة) ———————————
+@router.post("/catalog/{catalog_item_id}/alert", response_model=ItemDetailOut)
+async def alert_on(catalog_item_id: int, request: Request, p: Principal = Depends(customer_user)) -> ItemDetailOut:
+    async with request.app.state.db.tx("customer", p.user_id) as t:
+        m = await member(t, p.user_id)
+        await t.run("INSERT INTO stock_alerts (user_id, catalog_item_id) VALUES (:u, :i) ON CONFLICT DO NOTHING",
+                    u=p.user_id, i=catalog_item_id)
+        return await _item(t, m, catalog_item_id)
+
+
+@router.delete("/catalog/{catalog_item_id}/alert", response_model=ItemDetailOut)
+async def alert_off(catalog_item_id: int, request: Request, p: Principal = Depends(customer_user)) -> ItemDetailOut:
+    async with request.app.state.db.tx("customer", p.user_id) as t:
+        m = await member(t, p.user_id)
+        await t.run("DELETE FROM stock_alerts WHERE user_id = :u AND catalog_item_id = :i", u=p.user_id, i=catalog_item_id)
+        return await _item(t, m, catalog_item_id)
+
+
+async def _item(t: Tx, m: dict, catalog_item_id: int) -> ItemDetailOut:
+    r = await t.one(CATALOG_SQL + " WHERE v.id = :i AND v.city = :city", i=catalog_item_id, city=m["city"],
+                    branch=await cart_branch(t, m, None))
+    if r is None:
+        raise ApiError(404, "item_not_found")
+    cat = await t.val("SELECT name_ar FROM categories WHERE id = :c", c=r["category_id"])
+    return ItemDetailOut(item=Catalog2Out(**r), category_name=cat)

@@ -13,7 +13,7 @@ from app.api.deps import Principal, driver_user
 from app.core.db import Tx
 from app.core.errors import ApiError
 from app.core.money import fmt
-from app.schemas.driver import (DeviceIn, DriverOut, MediaOut, Me2Out, NotificationOut, ReadIn, RegistrationIn,
+from app.schemas.driver import (AvailabilityIn, ContactOut, DeviceIn, DriverOut, MediaOut, Me2Out, NotificationOut, ReadIn, RegistrationIn,
                                 SettlementOut, WalletOut)
 from app.services.media import PUBLIC, PURPOSES
 from app.services.pdf import esc, render, rows
@@ -24,7 +24,7 @@ DRIVER_SQL = """
 SELECT d.id, d.full_name, d.status::text AS status, d.pay_method::text AS pay_method, d.vehicle::text AS vehicle,
        d.capacity_kg, d.phone, ci.name_ar AS city_name, d.city,
        (d.id_media_id IS NOT NULL AND d.license_media_id IS NOT NULL AND d.license_back_media_id IS NOT NULL
-        AND d.photo_media_id IS NOT NULL) AS documents_complete
+        AND d.photo_media_id IS NOT NULL) AS documents_complete, d.accepting
   FROM drivers d JOIN cities ci ON ci.code = d.city WHERE d.user_id = :u"""
 
 
@@ -45,7 +45,19 @@ async def me(request: Request, p: Principal = Depends(driver_user)) -> Me2Out:
         name = await t.val("SELECT full_name FROM app_users WHERE id = :u", u=p.user_id)
         unread = await t.val("SELECT count(*) FROM notifications WHERE user_id = :u AND read_at IS NULL", u=p.user_id)
         d = await t.one(DRIVER_SQL, u=p.user_id)
-    return Me2Out(full_name=d["full_name"] if d else name, driver=_out(d) if d else None, unread=unread)
+        c = await t.one("SELECT contact_phone AS phone, contact_whatsapp AS whatsapp FROM city_settings WHERE city = :c",
+                        c=request.app.state.settings.auth_city)
+    return Me2Out(full_name=d["full_name"] if d else name, driver=_out(d) if d else None, unread=unread,
+                  contact=ContactOut(**c) if c else None)
+
+
+@router.put("/availability", response_model=Me2Out)
+async def availability(body: AvailabilityIn, request: Request, p: Principal = Depends(driver_user)) -> Me2Out:
+    # §12-ط «أستقبل طلبيات الآن»: غير المتاح لا تُعرض عليه طلبيات ولا يقبل ولا يعرض أجرة (القاعدة)
+    async with request.app.state.db.tx("driver", p.user_id) as t:
+        await driver(t, p.user_id)
+        await t.run("UPDATE drivers SET accepting = :a WHERE user_id = :u", a=body.accepting, u=p.user_id)
+    return await me(request, p)
 
 
 @router.post("/media", response_model=MediaOut, status_code=201)
@@ -85,8 +97,10 @@ async def wallet(request: Request, p: Principal = Depends(driver_user)) -> Walle
         b = await t.one("SELECT cash_held, wage_due FROM driver_own_balances()")
         cap = await t.val("SELECT driver_cash_cap FROM city_settings WHERE city = :c", c=d["city"])
     handover = max(b["cash_held"] - b["wage_due"], 0) if d["pay_method"] == "offset_on_settlement" else b["cash_held"]
+    rule = {"offset_on_settlement": "at_next_handover", "periodic": "pending_decision"}.get(d["pay_method"] or "")
     return WalletOut(cash_held=b["cash_held"], cash_cap=cap, over_cap=cap is not None and b["cash_held"] > cap,
-                     wage_due=b["wage_due"], pay_method=d["pay_method"], handover_due=handover)
+                     wage_due=b["wage_due"], pay_method=d["pay_method"], handover_due=handover,
+                     next_payout_on=None, next_payout_rule=rule)
 
 
 def _month(month: str | None) -> date:

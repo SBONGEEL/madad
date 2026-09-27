@@ -2,17 +2,17 @@
  * 08 الملف (M-11، الأمانة): الاسم والمركبة والسعة والمدينة، والحالة، وطريقة صرف الأجر («يحددها مَدَد»)،
  * وأمانة الطلبيات الملغاة بعهدتك، وقائمة (التسويات، الإشعارات، أوراقي، خروج).
  * «أوراقي» حالة الأوراق وحدها بلا صورها (قرار المالك 27/09). الإشعارات عرض فرعي (?view=notifications).
- * NO-DB لا يُعرض: مفتاح «أستقبل طلبيات الآن»، ورقم «تواصل مع مَدَد»، وحالة إذن الموقع (لا موقع حيّ).
+ * «أستقبل طلبيات الآن» و«تواصل مع مَدَد» (§12-ط، 27/09). لا موقع حيّ، فلا حالة إذن الموقع.
  * رمز الإشعار الفوري يأتي من غلاف Android (window.MadadPush) حين يوجد؛ نسخة الويب بلا FCM.
  */
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import * as fmt from "@ui/fmt";
-import { Button, EmptyState, ErrorState, Icon, LoadingState, Note, Num, StatusBadge, cx, useAction, useLoad } from "@ui/kit";
+import { Button, EmptyState, ErrorState, Icon, LoadingState, Note, Num, StatusBadge, Switch, cx, useAction, useLoad } from "@ui/kit";
 import type { IconName } from "@ui/icons";
 import { api } from "@/api/client";
-import type { CustodyItemOut, NotificationOut } from "@/api/types";
+import type { CustodyItemOut, Me2Out, NotificationOut } from "@/api/types";
 import { DRIVER_STATUS, PAY_METHOD, VEHICLE, lineQty, when } from "@/lib/acc-ui";
 import { HomeHeader, Screen } from "@/lib/shell";
 import { useSession } from "@/session";
@@ -73,6 +73,8 @@ function Account() {
             {st ? <StatusBadge tone={st[1]} icon={d?.status === "approved" ? "shield-check" : undefined}>{st[0]}</StatusBadge> : null}
           </section>
 
+          {d?.status === "approved" ? <Availability accepting={d.accepting ?? true} /> : null}
+
           {d?.status === "pending" ? <Note tone="warning">نراجع أوراقك. نبلغك حين تُعتمد، ومعها طريقة صرف أجرك التي يحددها مَدَد.</Note> : null}
           {d?.status === "rejected" ? <Note tone="error">لم يُعتمد حسابك. راجع فريق مَدَد لمعرفة السبب.</Note> : null}
 
@@ -111,6 +113,13 @@ function Account() {
                 {st ? <StatusBadge tone={st[1]}>{st[0]}</StatusBadge> : null}
               </div>
               <span className="text-13 text-ink-muted">أوراقك عند مَدَد وحده. لتحديثها تواصل مع فريق مَدَد.</span>
+            </div>
+          ) : null}
+          {me.contact?.phone || me.contact?.whatsapp ? (
+            <div className={ROW}>
+              <Icon name="phone" /><span className="flex-1">تواصل مع مَدَد</span>
+              {me.contact.phone ? <a className="md-link" href={`tel:${me.contact.phone}`}>اتصال</a> : null}
+              {me.contact.whatsapp ? <a className="md-link" href={`https://wa.me/${me.contact.whatsapp.replace("+", "")}`} target="_blank" rel="noreferrer">واتساب</a> : null}
             </div>
           ) : null}
           <button type="button" className={cx(ROW, "cursor-pointer")} onClick={() => void api.logout()}>
@@ -211,5 +220,22 @@ function Notifications() {
           </div>
         )}
     </Screen>
+  );
+}
+
+/** «أستقبل طلبيات الآن» (§12-ط): غير المتاح لا تُعرض عليه طلبيات ولا يقبل؛ قد يُسند إليه مَدَد يدوياً مع تنبيه. */
+function Availability({ accepting }: { accepting: boolean }) {
+  const { refresh } = useSession();
+  const act = useAction();
+  async function set(v: boolean) {
+    const r = await act.run(() => api.put<Me2Out>(`/api/driver/availability`, { accepting: v }),
+      v ? "أنت متاح: تصلك الطلبيات الجديدة" : "أنت غير متاح: لا تُعرض عليك طلبيات");
+    if (r) refresh();
+  }
+  return (
+    <div className="flex justify-between items-center gap-2 p-3 bg-surface border border-border rounded-md">
+      <span className="font-bold">أستقبل طلبيات الآن</span>
+      <Switch checked={accepting} label="أستقبل طلبيات" disabled={act.busy} onChange={(v) => void set(v)} />
+    </div>
   );
 }

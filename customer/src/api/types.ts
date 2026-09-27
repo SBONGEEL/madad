@@ -24,6 +24,7 @@ export interface BranchIn {
   lng: number | string;
   zone_id?: number | null;
   address_text: string;
+  default_recipient?: string | null;
 }
 
 export interface BranchOut {
@@ -36,6 +37,7 @@ export interface BranchOut {
   zone_name: string | null;
   status: string;
   active: boolean;
+  default_recipient?: string | null;
 }
 
 export interface BranchReportOut {
@@ -44,6 +46,10 @@ export interface BranchReportOut {
   status: string;
   amount: string;
   orders: number;
+}
+
+export interface CancelIn {
+  reason?: string | null;
 }
 
 export interface CartLineOut {
@@ -91,6 +97,7 @@ export interface Catalog2Out {
   out_of_stock: boolean;
   image_media_id: number | null;
   cart_qty: string | null;
+  alert?: boolean;
   available_qty?: string | null;
 }
 
@@ -121,6 +128,8 @@ export interface ContextOut {
   min_order_amount: string | null;
   min_order_lines: number | null;
   credit: string;
+  contact_phone: string | null;
+  contact_whatsapp: string | null;
 }
 
 export interface CustomerOut {
@@ -197,6 +206,7 @@ export interface ListLineOut {
   sale_price: string | null;
   orderable: boolean;
   category_id: number;
+  alert?: boolean;
 }
 
 export interface ListOut {
@@ -294,6 +304,8 @@ export interface Order2Out {
   events: EventOut[];
   batches: BatchOut[];
   editable: boolean;
+  recipient_name?: string | null;
+  cancellable?: boolean;
 }
 
 export interface Order2SummaryOut {
@@ -322,6 +334,7 @@ export interface OrderLineOut {
 export interface PlaceIn {
   branch_id?: number | null;
   notes?: string | null;
+  recipient_name?: string | null;
 }
 
 export interface ReadIn {

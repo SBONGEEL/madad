@@ -10,7 +10,7 @@ import {
   Switch, TextField, toast, useAction, useLoad,
 } from "@ui/kit";
 import { api } from "@/api/client";
-import type { AuditOut, ChannelOut, SettingsIn, SettingsOut, Visibility } from "@/api/types";
+import type { AreaOverlapOut, AuditOut, ChannelOut, SettingsIn, SettingsOut, Visibility } from "@/api/types";
 import { SETTING_LABEL, VALUE_LABEL, auditActor, showValue } from "@/lib/admin-labels";
 import { useSession } from "@/session";
 
@@ -275,6 +275,11 @@ export function Settings() {
         );
       }}</Loader>
 
+      <div className="grid grid-cols-2 gap-4 items-start">
+        <AreaOverlapCard />
+        <div />
+      </div>
+
       <SectionTitle title="رموز التحقق" />
       <OtpChannels />
 
@@ -404,6 +409,34 @@ function VisibilityCard() {
             </div>
           ))}
         </div>
+      )}</Loader>
+    </Section>
+  );
+}
+
+/** م-27: حين يقع فرع داخل منطقتين مرسومتين برسمين مختلفين. في كل الحالات يصل تنبيه بالتداخل (القاعدة). */
+function AreaOverlapCard() {
+  const st = useLoad(() => api.get<AreaOverlapOut>(`/api/admin/settings/area-overlap`));
+  const act = useAction();
+  async function set(rule: string) {
+    const v = await act.run(() => api.put<AreaOverlapOut>(`/api/admin/settings/area-overlap`, { rule }), "حُفظ الإعداد — يسري على الطلبيات الجديدة");
+    if (v) st.set(v);
+  }
+  return (
+    <Section title="حين يقع فرع داخل منطقتين مرسومتين برسمين مختلفين" right={<StatusBadge tone="neutral">M-27</StatusBadge>}>
+      <Loader state={st}>{(d) => (
+        <>
+          <OptionGroup value={d.rule} disabled={act.busy} onChange={(v) => void set(v)} options={[
+            { value: "stop", label: "تتوقف طلبيات الفرع حتى تُصحَّح الحدود", sub: "يصلك تنبيه بالمنطقتين والفروع الواقعة فيهما.", initial: true },
+            { value: "higher", label: "الرسم الأعلى", sub: "يُؤخذ أعلى رسمَي المنطقتين." },
+            { value: "lower", label: "الرسم الأقل", sub: "يُؤخذ أقلّهما." }]} />
+          <span className="text-12 text-ink-muted">في كل الحالات يصلك تنبيه بالتداخل، وعند حفظ منطقة ترسم تداخلاً جديداً. يسري على الطلبيات الجديدة.</span>
+          {d.overlaps.length ? (
+            <div className="flex justify-between items-center text-14 border-t border-border pt-2.5">
+              <span>تداخلات قائمة: <Num>{d.overlaps.length}</Num></span><Link to="/zones" className="md-link">مناطق التوصيل</Link>
+            </div>
+          ) : null}
+        </>
       )}</Loader>
     </Section>
   );

@@ -2,9 +2,9 @@
 import { useState } from "react";
 
 import * as fmt from "@ui/fmt";
-import { Button, DataTable, Money, Note, Num, PageHead, Section, StatusBadge, Switch, TextField, useAction, useLoad } from "@ui/kit";
+import { Button, DataTable, Dialog, Icon, Money, Note, Num, PageHead, Section, StatusBadge, Switch, TextField, useAction, useLoad } from "@ui/kit";
 import { api } from "@/api/client";
-import type { AreaOut, ZoneOut } from "@/api/types";
+import type { AreaOut, AreaOverlapOut, OverlapHitOut, ZoneOut } from "@/api/types";
 import { AreaMap, AreaPreview, MAPBOX_TOKEN, PointsEditor } from "@/lib/admin-map";
 
 export function Zones() {
@@ -13,6 +13,7 @@ export function Zones() {
       <PageHead title="مناطق التوصيل"
         sub="الطريقتان معاً: حيّ يُختار لكل فرع من القائمة، ومناطق تُرسم على الخريطة. تسري الرسوم على الطلبيات الجديدة."
         actions={<StatusBadge tone="neutral">M-16</StatusBadge>} />
+      <OverlapAlert />
       <div className="grid grid-cols-3 gap-4 items-start">
         <ZonesCard />
         <AreasCard />
@@ -126,7 +127,22 @@ function AreasCard() {
     setDrawing(false);
   }
 
+  const [overlap, setOverlap] = useState<OverlapHitOut[] | null>(null);
+
+  /** م-27: قبل الحفظ يُفحص التداخل مع منطقة برسم مختلف؛ يُعرض قبل الحفظ ويُحفظ رغم ذلك إن شاء المالك. */
+  async function check() {
+    if (!canSave) return;
+    if (active) {
+      const hits = await act.run(() => api.post<OverlapHitOut[]>(`/api/admin/areas/overlap-check`,
+        { polygon: points, fee: fee.trim(), area_id: mode === "edit" ? editId : null }));
+      if (hits === undefined) return;
+      if (hits.length) { setOverlap(hits); return; }
+    }
+    await submit();
+  }
+
   async function submit() {
+    setOverlap(null);
     if (!canSave) return;
     const body = { name_ar: name.trim(), fee: fee.trim(), polygon: points, active };
     const v = mode === "edit" && editId != null
@@ -181,7 +197,7 @@ function AreasCard() {
           <TextField label="الرسم" value={fee} onChange={setFee} numeric suffix="د.ل" disabled={act.busy} error={feeBad ? "مبلغ غير صالح" : null} />
           <div className="self-end flex flex-col gap-2">
             {mode === "edit" ? <label className="flex gap-2.5 items-center text-14"><Switch checked={active} onChange={setActive} label="المنطقة مفعّلة" /> مفعّلة</label> : null}
-            <Button icon="check" block loading={act.busy} disabled={!canSave} onClick={submit}>حفظ المنطقة</Button>
+            <Button icon="check" block loading={act.busy} disabled={!canSave} onClick={check}>حفظ المنطقة</Button>
           </div>
         </div>
       ) : null}
@@ -195,6 +211,48 @@ function AreasCard() {
           { key: "p", label: "النقاط", numeric: true, render: (r) => <Num>{r.polygon.length}</Num> },
           { key: "s", label: "الحالة", render: (r) => r.active ? <StatusBadge tone="success">مفعّلة</StatusBadge> : <StatusBadge tone="neutral">موقوفة</StatusBadge> },
         ]} />
+          <Dialog open={!!overlap} onClose={() => setOverlap(null)} label="تداخل منطقتين">
+        <span className="md-dialog-ico md-tone-bg-warning"><Icon name="triangle-alert" size={22} /></span>
+        <div className="md-dialog-title">المنطقة {mode === "edit" ? "" : "الجديدة "}تتداخل مع «{overlap?.map((h) => h.name_ar).join("» و«")}»</div>
+        <div className="md-dialog-body">
+          «{name.trim()}» (<Money value={fee.trim()} />) تتقاطع مع {overlap?.map((h, i) => <span key={h.area_id}>{i ? " و" : ""}«{h.name_ar}» (<Money value={h.fee} />)</span>)}
+          {overlap && overlap.some((h) => h.branches.length) ? <>، و<Num>{overlap.reduce((n, h) => n + h.branches.length, 0)}</Num> فرع يقع في الاثنتين</> : null}.
+          {" "}بالإعداد الحالي (M-27) قد تتوقف طلبياتها أو يتغير رسمها.
+        </div>
+        <div className="md-dialog-actions">
+          <Button block icon="pencil" onClick={() => setOverlap(null)}>تعديل الحدود قبل الحفظ</Button>
+          <Button block variant="secondary" loading={act.busy} onClick={() => void submit()}>حفظ رغم التداخل</Button>
+        </div>
+      </Dialog>
+</Section>
+  );
+}
+
+/** م-27: تنبيه المالك بالمنطقتين المتداخلتين برسمين مختلفين والفروع الواقعة فيهما، والإعداد الساري. */
+function OverlapAlert() {
+  const st = useLoad(() => api.get<AreaOverlapOut>(`/api/admin/settings/area-overlap`));
+  const d = st.data;
+  if (!d || !d.overlaps.length) return null;
+  const ruleText = { stop: "تتوقف طلبياتها حتى تُصحَّح الحدود", higher: "يُؤخذ الرسم الأعلى", lower: "يُؤخذ الرسم الأقل" }[d.rule] ?? d.rule;
+  const rows = d.overlaps.flatMap((o) => (o.branches.length ? o.branches : [{ branch: "لا فرع فيهما الآن" }]).map((b, i) => ({
+    key: `${o.area_a}-${o.area_b}-${i}`, branch: String((b as { branch?: string }).branch ?? ""),
+    areas: `${o.name_a} ${fmt.money(o.fee_a)} · ${o.name_b} ${fmt.money(o.fee_b)}`, has: o.branches.length > 0,
+  })));
+  return (
+    <Section title="تنبيه: منطقتان متداخلتان برسمين مختلفين" right={<StatusBadge tone="error">M-27</StatusBadge>}>
+      {d.overlaps.map((o) => (
+        <Note key={`${o.area_a}-${o.area_b}`} tone="error">
+          <b>«{o.name_a}» (<Money value={o.fee_a} />) و«{o.name_b}» (<Money value={o.fee_b} />) تتداخلان.</b>{" "}
+          {o.branches.length ? <><Num>{o.branches.length}</Num> فرع يقع فيهما معاً. </> : null}
+          الإعداد الآن: <b>{ruleText}</b> (M-27).
+        </Note>
+      ))}
+      <DataTable rows={rows} rowKey={(r) => r.key} columns={[
+        { key: "branch", label: "الفرع" },
+        { key: "areas", label: "المنطقتان" },
+        { key: "s", label: "الحالة", render: (r) => (r.has ? <StatusBadge tone={d.rule === "stop" ? "error" : "warning"}>{d.rule === "stop" ? "متوقفة" : ruleText}</StatusBadge> : "—") },
+      ]} />
+      <span className="text-13 text-ink-muted">صحّح الحدود بتعديل المنطقة أدناه، أو غيّر القاعدة من الإعدادات.</span>
     </Section>
   );
 }

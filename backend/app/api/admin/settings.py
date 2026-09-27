@@ -13,7 +13,7 @@ from app.api.admin.common import P, city
 from app.api.deps import Principal, admin_user
 from app.core.db import Tx
 from app.core.errors import ApiError
-from app.schemas.admin import (AreaIn, AreaOut, ChannelOut, ChannelsIn, CogsIn, SettingsIn, SettingsOut, ZoneIn, ZoneOut)
+from app.schemas.admin import (AreaOverlapIn, AreaOverlapOut, ContactIn, ContactOut, OverlapCheckIn, OverlapHitOut, OverlapOut, AreaIn, AreaOut, ChannelOut, ChannelsIn, CogsIn, SettingsIn, SettingsOut, ZoneIn, ZoneOut)
 from app.services.otp.providers import configured
 
 router = APIRouter()
@@ -140,3 +140,64 @@ async def edit_area(area_id: int, body: AreaIn, request: Request, p: Principal =
         await t.run("UPDATE delivery_areas SET name_ar = :n, fee = :f, polygon = CAST(:g AS jsonb), active = :a WHERE id = :i",
                     n=body.name_ar.strip(), f=body.fee, g=json.dumps(body.polygon), a=body.active, i=area_id)
         return await _areas(t, city(request))
+
+
+# ——— م-27: قاعدة تداخل منطقتين برسمين مختلفين، والتداخلات القائمة والفروع فيها ——————————————
+async def _overlaps(t: Tx, c: str) -> AreaOverlapOut:
+    rule = await t.val("SELECT area_overlap_rule::text FROM city_settings WHERE city = :c", c=c)
+    rows = await t.all("SELECT area_a, name_a, fee_a, area_b, name_b, fee_b, branches FROM v_area_overlaps "
+                       "WHERE city = :c ORDER BY name_a, name_b", c=c)
+    return AreaOverlapOut(rule=rule, overlaps=[OverlapOut(**{**r, "branches": list(r["branches"])}) for r in rows])
+
+
+@router.get("/settings/area-overlap", response_model=AreaOverlapOut, **P("settings"))
+async def area_overlap(request: Request, p: Principal = Depends(admin_user)) -> AreaOverlapOut:
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        return await _overlaps(t, city(request))
+
+
+@router.put("/settings/area-overlap", response_model=AreaOverlapOut, **P("settings"))
+async def set_area_overlap(body: AreaOverlapIn, request: Request, p: Principal = Depends(admin_user)) -> AreaOverlapOut:
+    """يسري على الطلبيات الجديدة (لقطة عند الإرسال)، ويُدقَّق — في القاعدة."""
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        await t.run("UPDATE city_settings SET area_overlap_rule = CAST(:r AS area_overlap_rule) WHERE city = :c",
+                    r=body.rule, c=city(request))
+        return await _overlaps(t, city(request))
+
+
+@router.post("/areas/overlap-check", response_model=list[OverlapHitOut], **P("settings"))
+async def overlap_check(body: OverlapCheckIn, request: Request, p: Principal = Depends(admin_user)) -> list[OverlapHitOut]:
+    """قبل حفظ منطقة: المناطق النشطة برسم مختلف التي تتقاطع معها، والفروع الواقعة فيهما معاً."""
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        rows = await t.all("""
+SELECT a.id AS area_id, a.name_ar, a.fee,
+       coalesce((SELECT jsonb_agg(jsonb_build_object('branch_id', br.id, 'branch', c.name || ' — ' || br.name))
+                   FROM customer_locations br JOIN customers c ON c.id = br.customer_id
+                  WHERE br.city = a.city AND br.active AND point_in_polygon(br.lat, br.lng, a.polygon)
+                    AND point_in_polygon(br.lat, br.lng, CAST(:g AS jsonb))), '[]'::jsonb) AS branches
+  FROM delivery_areas a
+ WHERE a.city = :c AND a.active AND a.fee <> :f AND (CAST(:i AS bigint) IS NULL OR a.id <> :i)
+   AND polygons_overlap(a.polygon, CAST(:g AS jsonb))
+ ORDER BY a.name_ar""", c=city(request), f=body.fee, i=body.area_id,
+                           g=json.dumps([[float(x) for x in pt] for pt in body.polygon]))
+    return [OverlapHitOut(**{**r, "branches": list(r["branches"])}) for r in rows]
+
+
+# ——— §12-ط: رقم «تواصل مع مَدَد» (اتصال وواتساب) — يصل التطبيقات الثلاثة كما هو ——————————————
+async def _contact(t: Tx, c: str) -> ContactOut:
+    r = await t.one("SELECT contact_phone AS phone, contact_whatsapp AS whatsapp FROM city_settings WHERE city = :c", c=c)
+    return ContactOut(**r)
+
+
+@router.get("/settings/contact", response_model=ContactOut, **P("settings"))
+async def contact(request: Request, p: Principal = Depends(admin_user)) -> ContactOut:
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        return await _contact(t, city(request))
+
+
+@router.put("/settings/contact", response_model=ContactOut, **P("settings"))
+async def set_contact(body: ContactIn, request: Request, p: Principal = Depends(admin_user)) -> ContactOut:
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        await t.run("UPDATE city_settings SET contact_phone = :p, contact_whatsapp = :w WHERE city = :c",
+                    p=body.phone, w=body.whatsapp, c=city(request))
+        return await _contact(t, city(request))

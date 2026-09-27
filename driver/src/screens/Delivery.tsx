@@ -50,6 +50,7 @@ function DeliveryOf({ o, onDone }: { o: Order2Out; onDone: (o: Order2Out, b: Bat
       <div className="flex flex-col gap-1">
         <span className="text-13 md-muted">فرع التسليم</span>
         <b className="text-19">{o.customer_name} — {o.branch_name}</b>
+        {o.recipient_name ? <span className="text-14">المستلم: <b>{o.recipient_name}</b></span> : null}
       </div>
       <div className="flex items-center gap-2">
         <Icon name="map-pin" size={20} />

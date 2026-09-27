@@ -134,7 +134,8 @@ class PriceChangeOut(CostAware):
 
 
 class ItemPricingOut(CostAware):
-    COST_FIELDS = ("mode", "margin_value", "manual_price", "cost_ref")
+    COST_FIELDS = ("mode", "margin_value", "manual_price", "cost_ref", "warehouse_cost_mode", "warehouse_manual_cost",
+                   "warehouse_cost", "warehouse_cost_missing")
     item: CatalogRowOut
     reprice_override: bool | None
     cost_basis_override: str | None
@@ -144,6 +145,11 @@ class ItemPricingOut(CostAware):
     margin_value: Decimal | None = None
     manual_price: Money | None = None
     cost_ref: Money | None = None
+    # م-28: تكلفة الصنف في مخزن مَدَد — تلقائي (بطريقة م-12) أو يدوي؛ اليدوي بلا تكلفة لا يُعرض للبيع
+    warehouse_cost_mode: str | None = None
+    warehouse_manual_cost: Money | None = None
+    warehouse_cost: Money | None = None
+    warehouse_cost_missing: bool | None = None
 
 
 class PricingIn(BaseModel):
@@ -353,6 +359,7 @@ class DriverChoiceOut(Out):
     cash_held: Money
     active_orders: int
     over_cap: bool
+    accepting: bool          # §12-ط: «أستقبل طلبيات الآن» — غير المتاح يُسند يدوياً مع تنبيه
 
 
 class AssignIn(BaseModel):
@@ -831,3 +838,54 @@ class DocumentOut(Out):
     media_id: int
     mime_type: str
     views: int
+
+
+# ——— م-27: تداخل منطقتين مرسومتين برسمين مختلفين ————————————————————————————————————
+class OverlapOut(Out):
+    area_a: int
+    name_a: str
+    fee_a: Money
+    area_b: int
+    name_b: str
+    fee_b: Money
+    branches: list[dict]
+
+
+class AreaOverlapOut(Out):
+    rule: str
+    overlaps: list[OverlapOut]
+
+
+class AreaOverlapIn(BaseModel):
+    rule: str = Field(pattern="^(stop|higher|lower)$")
+
+
+class OverlapCheckIn(BaseModel):
+    """فحص قبل الحفظ: هل ترسم هذه الحدود تداخلاً مع منطقة برسم آخر؟"""
+    polygon: list[list[Decimal]] = Field(min_length=3)
+    fee: Decimal = Field(ge=0, decimal_places=3)
+    area_id: int | None = None
+
+
+class OverlapHitOut(Out):
+    area_id: int
+    name_ar: str
+    fee: Money
+    branches: list[dict]
+
+
+# ——— م-28 ———
+class WarehouseCostIn(BaseModel):
+    mode: str = Field(pattern="^(auto|manual)$")
+    manual_cost: Decimal | None = Field(default=None, gt=0, decimal_places=3)
+
+
+# ——— §12-ط: رقم التواصل مع مَدَد ———
+class ContactOut(Out):
+    phone: str | None
+    whatsapp: str | None
+
+
+class ContactIn(BaseModel):
+    phone: str | None = Field(default=None, pattern=r"^\+2189[0-9]{8}$")
+    whatsapp: str | None = Field(default=None, pattern=r"^\+2189[0-9]{8}$")

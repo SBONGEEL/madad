@@ -102,7 +102,8 @@ export function Main() {
         {dash.pickups_today > 0 ? (
           <Link to="/pickups" className="flex items-center gap-2.5 p-3 rounded-md bg-warning text-on-warning no-underline">
             <Icon name="truck" />
-            <span className="flex-1 text-15"><b>{pickupsLine(dash.pickups_today)}</b></span>
+            <span className="flex-1 text-15"><b>{pickupsLine(dash.pickups_today)}</b>
+              {dash.first_eta ? <> — أول سائق حوالي <Num>{fmt.time(dash.first_eta)}</Num></> : null}</span>
             <Icon name="chevron-left" size={18} />
           </Link>
         ) : null}

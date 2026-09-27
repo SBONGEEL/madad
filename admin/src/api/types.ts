@@ -47,6 +47,15 @@ export interface AreaOut {
   polygon: number[][];
 }
 
+export interface AreaOverlapIn {
+  rule: string;
+}
+
+export interface AreaOverlapOut {
+  rule: string;
+  overlaps: OverlapOut[];
+}
+
 export interface AssignIn {
   driver_id: number;
   route_km: number | string;
@@ -208,6 +217,16 @@ export interface CompleteIn {
   full_name: string;
 }
 
+export interface ContactIn {
+  phone?: string | null;
+  whatsapp?: string | null;
+}
+
+export interface ContactOut {
+  phone: string | null;
+  whatsapp: string | null;
+}
+
 export interface CostLineOut {
   stop_id: number;
   name_ar: string;
@@ -315,6 +334,7 @@ export interface DriverChoiceOut {
   cash_held: string;
   active_orders: number;
   over_cap: boolean;
+  accepting: boolean;
 }
 
 export interface DriverSettleOut {
@@ -365,6 +385,10 @@ export interface ItemPricingOut {
   margin_value?: string | null;
   manual_price?: string | null;
   cost_ref?: string | null;
+  warehouse_cost_mode?: string | null;
+  warehouse_manual_cost?: string | null;
+  warehouse_cost?: string | null;
+  warehouse_cost_missing?: boolean | null;
 }
 
 export interface LoginIn {
@@ -448,6 +472,29 @@ export interface OrderRowOut {
   driver_name: string | null;
   placed_at: string | null;
   plan_complete: boolean;
+}
+
+export interface OverlapCheckIn {
+  polygon: Array<Array<number | string>>;
+  fee: number | string;
+  area_id?: number | null;
+}
+
+export interface OverlapHitOut {
+  area_id: number;
+  name_ar: string;
+  fee: string;
+  branches: Record<string, unknown>[];
+}
+
+export interface OverlapOut {
+  area_a: number;
+  name_a: string;
+  fee_a: string;
+  area_b: number;
+  name_b: string;
+  fee_b: string;
+  branches: Record<string, unknown>[];
 }
 
 export interface PayMethodIn {
@@ -768,6 +815,11 @@ export interface Visibility {
   driver_sees_supplier_name: boolean;
   customer_sees_driver_name: boolean;
   customer_can_call_driver: boolean;
+}
+
+export interface WarehouseCostIn {
+  mode: string;
+  manual_cost?: number | string | null;
 }
 
 export interface WarehouseIn {

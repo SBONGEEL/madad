@@ -103,6 +103,8 @@ class ContextOut(Out):
     min_order_amount: Money | None
     min_order_lines: int | None
     credit: Money
+    contact_phone: str | None        # §12-ط: «تواصل مع مَدَد» كما يضبطه المالك
+    contact_whatsapp: str | None
 
 
 class Me2Out(Out):
@@ -141,6 +143,7 @@ class Catalog2Out(Out):
     out_of_stock: bool
     image_media_id: int | None
     cart_qty: Qty | None
+    alert: bool = False              # §12-ط: طلب «نبّهني حين يتوفر» على هذا الصنف
     available_qty: Qty | None = None   # م-15: يصل حين تمنع السياسة البيع فوق المتاح وحدها
 
     @model_serializer(mode="wrap")
@@ -171,6 +174,7 @@ class BranchOut(Out):
     zone_name: str | None
     status: str
     active: bool
+    default_recipient: str | None = None     # §12-ط: مستلم الفرع الافتراضي
 
 
 class BranchIn(BaseModel):
@@ -179,6 +183,7 @@ class BranchIn(BaseModel):
     lng: Decimal = Field(ge=-180, le=180)
     zone_id: int | None = None
     address_text: str = Field(min_length=1, max_length=300)
+    default_recipient: str | None = Field(default=None, max_length=120)
 
 
 class MemberRowOut(Out):
@@ -242,6 +247,11 @@ class CartQtyIn(BaseModel):
 class PlaceIn(BaseModel):
     branch_id: int | None = None
     notes: str | None = Field(default=None, max_length=500)
+    recipient_name: str | None = Field(default=None, max_length=120)   # بلا قيمة: مستلم الفرع الافتراضي
+
+
+class CancelIn(BaseModel):
+    reason: str | None = Field(default=None, max_length=300)
 
 
 class ReadyCartOut(Out):
@@ -297,6 +307,8 @@ class Order2Out(Out):
     events: list[EventOut]
     batches: list[BatchOut]
     editable: bool
+    recipient_name: str | None = None
+    cancellable: bool = False        # §12-ط: حسب م-7 المُلتقط وحالة الطلبية — القاعدة ترفض ما عداه
 
 
 class ReorderOut(Out):
@@ -347,6 +359,7 @@ class ListLineOut(Out):
     sale_price: Money | None
     orderable: bool
     category_id: int
+    alert: bool = False
 
 
 class ListDetailOut(Out):

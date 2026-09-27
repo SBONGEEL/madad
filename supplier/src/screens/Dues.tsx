@@ -52,7 +52,10 @@ function Filled({ d }: { d: DuesOut }) {
       <section className="bg-primary text-on-primary rounded-lg p-4 flex flex-col gap-1">
         <span className="text-14 text-on-primary-muted">مستحقاتك الآن</span>
         <span className="text-26 font-bold text-end"><Money value={d.due} /></span>
-        <span className="text-13 text-on-primary-muted">{cycle ? `الصرف ${cycle}` : "دورية الصرف تُحدَّد مع مَدَد عند الاعتماد"}</span>
+        <span className="text-13 text-on-primary-muted">
+          {cycle ? `الصرف ${cycle}` : "دورية الصرف تُحدَّد مع مَدَد عند الاعتماد"}
+          {d.next_payout_on ? <> · التالي <Num>{fmt.weekday(new Date(d.next_payout_on))} {fmt.date(d.next_payout_on)}</Num></> : null}
+        </span>
       </section>
       <Button variant="secondary" icon="file-text" loading={which === "all"} disabled={pdf.busy} onClick={() => download()}>كشف المستحقات PDF</Button>
 

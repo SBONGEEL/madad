@@ -66,6 +66,10 @@ WRITES = {
     ("POST", "/api/admin/orders/{order_id}/unassign"): lambda ids: {},
     ("POST", "/api/admin/disputes/{dispute_id}/resolve"): lambda ids: {"resolution": "no_action"},
     ("POST", "/api/admin/pay-offers/{pay_offer_id}/decide"): lambda ids: {"decision": "reject"},
+    ("PUT", "/api/admin/catalog/{item_id}/warehouse-cost"): lambda ids: {"mode": "auto"},
+    ("PUT", "/api/admin/settings/area-overlap"): lambda ids: {"rule": "stop"},
+    ("POST", "/api/admin/areas/overlap-check"): lambda ids: {"polygon": [["32.8", "13.1"], ["32.8", "13.3"], ["33.0", "13.3"]], "fee": "20"},
+    ("PUT", "/api/admin/settings/contact"): lambda ids: {"phone": "+218921112233", "whatsapp": "+218921112233"},
     # المال والمخازن
     ("POST", "/api/admin/drivers/{driver_id}/handover"): lambda ids: {"amount": "1"},
     ("POST", "/api/admin/drivers/{driver_id}/payout"): lambda ids: {"amount": "1"},

@@ -39,8 +39,8 @@ async def _fee(t: Tx, branch: int, subtotal: Decimal) -> tuple[Decimal | None, s
 async def cart_out(t: Tx, m: dict, branch: int | None) -> CartOut:
     ctx = await t.one("SELECT min_order_amount, min_order_lines, customer_credit_available(:c) AS credit "
                       "FROM city_settings WHERE city = :city", c=m["id"], city=m["city"])
-    b = await t.one("SELECT id, name, address_text, lat, lng, zone_id, zone_name, status::text AS status, active "
-                    "FROM v_customer_branches WHERE id = :b", b=branch) if branch else None
+    b = await t.one("SELECT id, name, address_text, lat, lng, zone_id, zone_name, status::text AS status, active, "
+                    "default_recipient FROM v_customer_branches WHERE id = :b", b=branch) if branch else None
     d = await _draft(t, branch)
     lines = await t.all("""
 SELECT l.catalog_item_id, l.name_ar, l.unit::text AS unit, l.unit_size, l.qty, l.unit_price, l.line_total,
@@ -137,5 +137,7 @@ async def place(body: PlaceIn, request: Request, p: Principal = Depends(customer
             raise ApiError(409, "order_empty")
         if body.notes is not None:
             await t.run("UPDATE orders SET notes = :n WHERE id = :o", n=body.notes.strip() or None, o=d["id"])
+        if body.recipient_name is not None and body.recipient_name.strip():
+            await t.run("UPDATE orders SET recipient_name = :r WHERE id = :o", r=body.recipient_name.strip(), o=d["id"])
         await t.run("UPDATE orders SET status = 'placed' WHERE id = :o", o=d["id"])
         return await load_order2(t, d["id"])

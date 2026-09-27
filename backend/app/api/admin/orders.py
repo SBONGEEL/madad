@@ -160,8 +160,8 @@ async def available_drivers(request: Request, p: Principal = Depends(admin_user)
             "SELECT d.id, d.full_name, d.vehicle::text AS vehicle, d.capacity_kg, "
             "coalesce((SELECT balance FROM ledger_accounts WHERE kind = 'driver_cash' AND driver_id = d.id), 0) AS cash_held, "
             "(SELECT count(*) FROM orders o WHERE o.driver_id = d.id AND o.status IN ('assigned', 'collecting', "
-            "'partially_delivered')) AS active_orders FROM drivers d WHERE d.city = :c AND d.status = 'approved' "
-            "ORDER BY d.full_name", c=city(request))
+            "'partially_delivered')) AS active_orders, d.accepting FROM drivers d WHERE d.city = :c AND d.status = 'approved' "
+            "ORDER BY d.accepting DESC, d.full_name", c=city(request))
         cap = await t.val("SELECT driver_cash_cap FROM city_settings WHERE city = :c", c=city(request))
     return [DriverChoiceOut(**r, over_cap=cap is not None and r["cash_held"] > cap) for r in rows]
 

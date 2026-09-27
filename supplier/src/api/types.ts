@@ -26,11 +26,18 @@ export interface CompleteIn {
   full_name: string;
 }
 
+export interface ContactOut {
+  phone: string | null;
+  whatsapp: string | null;
+}
+
 export interface DashboardOut {
   month_sales: string;
   active_offers: number;
   pickups_today: number;
   due: string;
+  next_payout_on?: string | null;
+  first_eta?: string | null;
 }
 
 export interface DeviceIn {
@@ -41,6 +48,7 @@ export interface DeviceIn {
 export interface DuesOut {
   due: string;
   payout_cycle: string | null;
+  next_payout_on?: string | null;
   received: ReceivedOut[];
   payouts: PayoutOut[];
 }
@@ -91,6 +99,7 @@ export interface Me2Out {
   full_name: string;
   supplier: SupplierOut | null;
   unread: number;
+  contact?: ContactOut | null;
 }
 
 export interface MediaOut {
@@ -170,6 +179,8 @@ export interface Pickup2Out {
   handover_method: string | null;
   handed_over_at: string | null;
   lines: PickupLineOut[];
+  eta_at?: string | null;
+  arrived_at?: string | null;
 }
 
 export interface PickupLineOut {

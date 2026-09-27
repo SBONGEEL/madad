@@ -4,6 +4,10 @@
  * (تكلفةٌ محجوبة عمّن لا يملك «التكاليف»، أو قيمة بإعداد).
  */
 
+export interface AvailabilityIn {
+  accepting: boolean;
+}
+
 export interface AvailableOut {
   id: number;
   customer_name: string;
@@ -82,6 +86,11 @@ export interface ConfirmStopIn {
   photo_media_id?: number | null;
 }
 
+export interface ContactOut {
+  phone: string | null;
+  whatsapp: string | null;
+}
+
 export interface CustodyItemOut {
   id: number;
   order_id: number;
@@ -123,6 +132,11 @@ export interface DriverOut {
   phone: string;
   city_name: string;
   documents_complete: boolean;
+  accepting?: boolean;
+}
+
+export interface EtaIn {
+  eta_at: string;
 }
 
 export interface HandoverOut {
@@ -158,6 +172,7 @@ export interface Me2Out {
   full_name: string;
   driver: DriverOut | null;
   unread: number;
+  contact?: ContactOut | null;
 }
 
 export interface MediaOut {
@@ -195,6 +210,7 @@ export interface Order2Out {
   stops: StopOut[];
   items: ItemOut[];
   batches: BatchOut[];
+  recipient_name?: string | null;
 }
 
 export interface Order2SummaryOut {
@@ -273,6 +289,8 @@ export interface StopOut {
   pickup_code: string;
   handed_over: boolean;
   lines: StopLineOut[];
+  eta_at?: string | null;
+  arrived_at?: string | null;
 }
 
 export interface TicketOut {
@@ -297,4 +315,6 @@ export interface WalletOut {
   wage_due: string;
   pay_method: string | null;
   handover_due: string;
+  next_payout_on?: string | null;
+  next_payout_rule?: string | null;
 }
