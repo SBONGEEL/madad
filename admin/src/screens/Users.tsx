@@ -5,12 +5,12 @@ import { Link } from "react-router-dom";
 import { qs } from "@ui/client";
 import * as fmt from "@ui/fmt";
 import {
-  Button, DataTable, Dialog, EmptyState, Icon, Loader, Num, PageHead, Section, SectionTitle, StatusBadge, Switch, TextField,
+  Button, DataTable, Dialog, EmptyState, Icon, Loader, Note, Num, PageHead, Section, SectionTitle, StatusBadge, Switch, TextField,
   useAction, useLoad,
 } from "@ui/kit";
 import { api } from "@/api/client";
 import type { AdminUserOut, AuditOut, TempPasswordOut } from "@/api/types";
-import { PERMS, VALUE_LABEL, auditActor } from "@/lib/admin-labels";
+import { OWNER_GRANTS, PERMS, VALUE_LABEL, auditActor } from "@/lib/admin-labels";
 import { ResetPasswordButton } from "@/lib/admin-reset";
 import { useSession } from "@/session";
 
@@ -49,7 +49,7 @@ export function Users() {
                     </td>
                     {PERMS.map((p) => (
                       <td key={p.key} className="text-center">
-                        <Switch checked={owner || u.permissions.includes(p.key)} disabled={owner || act.busy} label={`${u.full_name} — ${p.label}`}
+                        <Switch checked={owner || u.permissions.includes(p.key)} disabled={owner || act.busy || (OWNER_GRANTS.has(p.key) && !isOwner)} label={`${u.full_name} — ${p.label}`}
                           onChange={(on) => void toggle(u, p.key, on)} />
                       </td>
                     ))}
@@ -65,6 +65,10 @@ export function Users() {
         <Icon name="eye-off" />
         <span>مشرف بلا «التكاليف» لا يرى سعر الشراء ولا الهامش ولا الربح في أي شاشة؛ تختفي الأعمدة ولا تظهر فارغة. المالك له كل الصلاحيات دائماً.</span>
       </section>
+      <Note tone="info">
+        <b>عمودان يمنحهما المالك وحده</b>، كلٌّ على حدة: «إنشاء نسخة الآن» و«عرض حالة النسخ». مشرف بصلاحية «المستخدمون» لا يمنحهما.
+        التنزيل والإعدادات والاسترجاع وكلمة السر للمالك وحده دائماً ولا تظهر هنا.
+      </Note>
 
       {isOwner ? <ResetSection admins={list.data ?? []} /> : null}
 
@@ -74,6 +78,7 @@ export function Users() {
 }
 
 function InviteDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: (v: AdminUserOut[]) => void }) {
+  const { isOwner } = useSession();
   const act = useAction();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -103,7 +108,7 @@ function InviteDialog({ open, onClose, onDone }: { open: boolean; onClose: () =>
           error={phoneBad ? "رقم ليبي غير صالح" : null} />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        {PERMS.map((p) => {
+        {PERMS.filter((p) => isOwner || !OWNER_GRANTS.has(p.key)).map((p) => {
           const on = perms.includes(p.key);
           return (
             <label key={p.key} className="flex justify-between items-center gap-2 p-2.5 rounded-md bg-page text-14">

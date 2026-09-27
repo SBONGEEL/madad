@@ -8,7 +8,12 @@ export const PERMS: Array<{ key: string; label: string }> = [
   { key: "orders", label: "الطلبيات" }, { key: "warehouses", label: "المخازن" }, { key: "money", label: "المال" },
   { key: "customers", label: "العملاء" }, { key: "notifications", label: "الإشعارات" }, { key: "settings", label: "الإعدادات" },
   { key: "users", label: "المستخدمون" },
+  // §12-ك: يمنحهما المالك وحده
+  { key: "backups_run", label: "إنشاء نسخة الآن" }, { key: "backups_view", label: "عرض حالة النسخ" },
 ];
+
+/** صلاحيتا النسخ: المالك وحده يمنحهما (مفروض في القاعدة أيضاً). */
+export const OWNER_GRANTS = new Set(["backups_run", "backups_view"]);
 
 export const SETTING_LABEL: Record<string, string> = {
   min_order_amount: "الحد الأدنى — المبلغ", min_order_lines: "الحد الأدنى — عدد الأصناف", min_order_decided: "الحد الأدنى — القرار",

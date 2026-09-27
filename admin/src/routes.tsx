@@ -93,7 +93,7 @@ export const ROUTES: Array<{ path: string; perm: Perm; screen: ComponentType }> 
   { path: "/supplier-pay", perm: "money", screen: SupplierPay },
   { path: "/profit", perm: "costs_view", screen: Profit },
   { path: "/settings", perm: "settings", screen: Settings },
-  { path: "/settings/backups", perm: "settings", screen: Backups },
+  { path: "/settings/backups", perm: "any", screen: Backups },   // الشاشة تقرّر: المالك، أو صلاحيتا النسخ (§12-ك)
   { path: "/zones", perm: "settings", screen: Zones },
   { path: "/broadcasts", perm: "notifications", screen: Broadcast },
   { path: "/users", perm: "users", screen: Users },

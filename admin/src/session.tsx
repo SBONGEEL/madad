@@ -4,7 +4,7 @@ import { createContext, type ReactNode, useContext } from "react";
 import type { MeOut } from "@/api/types";
 
 export type Perm = "any" | "owner" | "approvals" | "catalog" | "costs_view" | "orders" | "warehouses" | "money" | "customers"
-  | "notifications" | "settings" | "users";
+  | "notifications" | "settings" | "users" | "backups_run" | "backups_view";
 
 export interface Session {
   me: MeOut;

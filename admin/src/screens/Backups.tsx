@@ -1,5 +1,6 @@
-/** النسخ الاحتياطية (§12-ي ن-3) — للمالك وحده: الدورية ومدة الحفظ ومكانها، والنسخ المتاحة وتنزيلها (يُسجَّل كل تنزيل).
- * الملف يُنزَّل مشفّراً كما هو؛ كلمة السر لا تمرّ باللوحة ولا بالخلفية. المشرف يرى «للمالك وحده». */
+/** النسخ الاحتياطية (§12-ي ن-3، §12-ك ٢) — للمالك: الدورية ومدة الحفظ ومكانها، والنسخ وتنزيلها، وسجل الوصول.
+ * الملف يُنزَّل مشفّراً كما هو؛ كلمة السر لا تمرّ باللوحة ولا بالخلفية. المشرف: «عرض حالة النسخ» يرى الحالة والسجل
+ * والتنبيهات، و«إنشاء نسخة الآن» يطلب نسخة؛ بلاهما «للمالك وحده». كل عرض وإنشاء وتنزيل يُسجَّل في الخادم. */
 import { useState } from "react";
 
 import { ApiError } from "@ui/client";
@@ -8,11 +9,14 @@ import {
   Button, DataTable, EmptyState, Loader, Note, Num, Option, PageHead, Section, StatusBadge, type Tone, toast, useAction, useLoad,
 } from "@ui/kit";
 import { api } from "@/api/client";
-import type { BackupRunOut, BackupsOut } from "@/api/types";
+import type { BackupAccessOut, BackupRequestOut, BackupRunOut, BackupStatusOut, BackupsOut } from "@/api/types";
 import { useSession } from "@/session";
 
 const STATUS: Record<string, [string, Tone]> = { ok: ["ناجحة", "success"], failed: ["فشلت", "error"], running: ["جارية", "info"] };
-const KIND: Record<string, string> = { daily: "يومية", weekly: "أسبوعية" };
+const KIND: Record<string, string> = { daily: "يومية", weekly: "أسبوعية", manual: "يدوية" };
+const ACTION: Record<string, string> = { view: "عرض حالة النسخ", create: "إنشاء نسخة الآن", download: "تنزيل نسخة" };
+const PLAN: Record<string, string> = { daily30: "يومية 30 يوماً", daily7_weekly12: "يومية 7 أيام + أسبوعية 12 أسبوعاً" };
+const PLACE: Record<string, string> = { both: "الخادم + المنفصلة", local: "الخادم", offsite: "المنفصلة" };
 const REASON: Record<string, string> = {
   passphrase_missing: "كلمة سر التشفير غير مضبوطة على الخادم",
   offsite_not_configured: "المساحة المنفصلة غير مضبوطة",
@@ -66,12 +70,98 @@ async function download(r: BackupRunOut): Promise<void> {
 }
 
 export function Backups() {
-  const { isOwner } = useSession();
+  const { isOwner, can } = useSession();
+  const view = can("backups_view"), run = can("backups_run");
   return (
     <div className="md-page">
       <PageHead title="النسخ الاحتياطية" sub="نسخة مشفّرة من القاعدة والملفات. تسري الإعدادات من النسخة التالية." />
-      {isOwner ? <OwnerView /> : <OwnerOnly />}
+      {isOwner ? <><OwnerView /><AccessLog /></> : view || run ? (
+        <div className="grid grid-cols-2 gap-4 items-start">
+          {view ? <ViewerView /> : null}
+          {run ? <CreateNow /> : null}
+        </div>
+      ) : <OwnerOnly />}
     </div>
+  );
+}
+
+/** «إنشاء نسخة الآن»: طلب يأخذه عامل النسخ خلال دقيقة. طلب والأول لم ينتهِ يُرفض: «نسخة قيد الإنشاء». */
+function CreateNow({ inline }: { inline?: boolean }) {
+  const act = useAction();
+  const [done, setDone] = useState(false);
+  async function go() {
+    const v = await act.run(() => api.post<BackupRequestOut>(`/api/admin/backups/run`));
+    if (v) setDone(true);
+  }
+  const body = (
+    <>
+      <div><Button icon="refresh-cw" variant={inline ? "secondary" : undefined} loading={act.busy} onClick={() => void go()}>إنشاء نسخة احتياطية الآن</Button></div>
+      {done ? <Note tone="success"><b>طُلبت نسخة الآن.</b> تبدأ خلال دقيقة، ويصل المالك تنبيه إن فشلت.</Note> : null}
+    </>
+  );
+  if (inline) return body;
+  return (
+    <Section title="إنشاء نسخة الآن">
+      {body}
+      <span className="text-13 text-ink-muted">طلب ثانٍ والأول لم ينتهِ يُرفض: «نسخة قيد الإنشاء».</span>
+    </Section>
+  );
+}
+
+/** ما يراه صاحب «عرض حالة النسخ»: الحالة والسجل والتنبيهات — لا تنزيل ولا إعدادات. */
+function ViewerView() {
+  const st = useLoad(() => api.get<BackupStatusOut>(`/api/admin/backups/status`));
+  return (
+    <Loader state={st} rows={5}>{(d) => {
+      const lastFail = d.runs.find((r) => r.status === "failed");
+      return (
+        <Section title="حالة النسخ">
+          {d.alert === "failed" && lastFail ? (
+            <Note tone="error"><b>فشلت نسخة <Num>{fmt.dateTime(lastFail.started_at)}</Num>.</b> السبب: {reason(lastFail.error)}.</Note>
+          ) : d.alert === "stale" ? <Note tone="warning"><b>مرّ يوم بلا نسخة ناجحة.</b></Note> : null}
+          <div className="flex gap-2 flex-wrap">
+            <StatusBadge tone="neutral">{PLAN[d.plan] ?? d.plan}</StatusBadge>
+            <StatusBadge tone="neutral">{PLACE[d.location] ?? d.location}</StatusBadge>
+          </div>
+          <span className="text-13 font-bold text-ink-muted">السجل</span>
+          <Runs runs={d.runs} />
+          <Note tone="info">ترى الحالة والسجل والتنبيهات فقط: لا تنزيل ولا إعدادات. كل فتح لهذا القسم يُسجَّل.</Note>
+        </Section>
+      );
+    }}</Loader>
+  );
+}
+
+/** سجل الوصول — من ومتى (المالك وحده). */
+function AccessLog() {
+  const log = useLoad(() => api.get<BackupAccessOut[]>(`/api/admin/backups/access`));
+  return (
+    <Section title="سجل الوصول — من ومتى">
+      <Loader state={log} rows={4}>{(rows) => (
+        <DataTable<BackupAccessOut> rows={rows} rowKey={(r) => `${r.at}-${r.who}-${r.action}`} emptyIcon="history"
+          emptyTitle="لا وصول مسجَّل بعد" emptyBody="كل عرض وإنشاء وتنزيل يظهر هنا."
+          columns={[
+            { key: "at", label: "الوقت", render: (r) => <Num>{fmt.dateTime(r.at)}</Num> },
+            { key: "who", label: "من", render: (r) => r.who },
+            { key: "what", label: "ماذا", render: (r) => (r.action === "download" && r.file_name ? `${ACTION.download} ${r.file_name}` : ACTION[r.action] ?? r.action) },
+          ]} />
+      )}</Loader>
+    </Section>
+  );
+}
+
+/** جدول النسخ بلا تنزيل (للمشرف). */
+function Runs({ runs }: { runs: BackupRunOut[] }) {
+  return (
+    <DataTable<BackupRunOut> rows={runs} rowKey={(r) => r.id} emptyIcon="shield-check" emptyTitle="لا نسخ بعد"
+      emptyBody="أول نسخة تظهر هنا بعد موعدها الليلي." rowTone={(r) => r.status === "failed" && "error"}
+      columns={[
+        { key: "w", label: "الوقت", render: (r) => <Num>{fmt.dateTime(r.started_at)}</Num> },
+        { key: "k", label: "النوع", render: (r) => KIND[r.kind] ?? r.kind },
+        { key: "s", label: "الحجم", render: (r) => <Num>{size(r.byte_size)}</Num> },
+        { key: "l", label: "المكان", render: where },
+        { key: "st", label: "الحالة", render: (r) => { const [l, t] = STATUS[r.status] ?? [r.status, "neutral"]; return <StatusBadge tone={t}>{l}</StatusBadge>; } },
+      ]} />
   );
 }
 
@@ -146,6 +236,7 @@ function Body({ d, onSaved }: { d: BackupsOut; onSaved: (v: BackupsOut) => void 
       <div>
         <Button icon="check" loading={act.busy} disabled={plan === d.policy.plan && location === d.policy.location} onClick={() => void save()}>حفظ</Button>
       </div>
+      <CreateNow inline />
 
       <span className="text-13 font-bold text-ink-muted">النسخ المتاحة</span>
       <DataTable<BackupRunOut> rows={d.runs} rowKey={(r) => r.id} emptyIcon="shield-check" emptyTitle="لا نسخ بعد"

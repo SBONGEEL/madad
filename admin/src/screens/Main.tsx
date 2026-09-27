@@ -5,7 +5,7 @@ import * as fmt from "@ui/fmt";
 import { Button, DataTable, Icon, Money, Note, Num, OrderStatusBadge, PageHead, Section, StatCard, StatusBadge, useLoad, type Tone } from "@ui/kit";
 import type { IconName } from "@ui/icons";
 import { api } from "@/api/client";
-import type { BackupsOut, DashboardOut, OrderRowOut } from "@/api/types";
+import type { BackupStatusOut, DashboardOut, OrderRowOut } from "@/api/types";
 import { downloadCsv } from "@/lib/csv";
 import { useSession } from "@/session";
 
@@ -13,7 +13,9 @@ export function Main() {
   const d = useLoad(() => api.get<DashboardOut>("/api/admin/dashboard"));
   const { can, isOwner } = useSession();
   // تنبيه النسخ (§12-ي ن-3): للمالك وحده، يبقى حتى تنجح نسخة
-  const backups = useLoad(() => (isOwner ? api.get<BackupsOut>("/api/admin/backups").catch(() => null) : Promise.resolve(null)), [isOwner]);
+  // شريط التنبيه للمالك ولصاحب «عرض حالة النسخ» (§12-ك)، من الحالة وحدها
+  const seesBackups = isOwner || can("backups_view");
+  const backups = useLoad(() => (seesBackups ? api.get<BackupStatusOut>("/api/admin/backups/status").catch(() => null) : Promise.resolve(null)), [seesBackups]);
   const nav = useNavigate();
   const now = new Date();
   const data = d.data;
