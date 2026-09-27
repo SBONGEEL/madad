@@ -1,0 +1,115 @@
+<!doctype html>
+<!--
+  غلاف التطوير وحده (طلب المالك 27/09): يجد حاسوب التطوير على شبكة البيت ثم يفتح التطبيق منه.
+  لا يدخل نسخ الإنتاج أبداً: capacitor.config.ts يشير إليه في وضع MADAD_SHELL=dev وحده، و
+  ui/scripts/check-shell.mjs يُسقط الفحص إن ظهر منه شيء في الإنتاج.
+
+  الترتيب: آخر عنوان نجح ← اسم الحاسوب المحلي (<الاسم>.local) ← بحث في الشبكة المحلية ← خانة يدوية
+  (تظهر عند الفشل، أو بضغطة طويلة على الشعار).
+-->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مَدَد — التطوير</title>
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; background: #F4F5F0; color: #1F2937; min-height: 100vh;
+         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; box-sizing: border-box; }
+  img { width: 96px; height: 96px; border-radius: 22px; user-select: none; -webkit-user-select: none; }
+  p { margin: 0; font-size: 15px; text-align: center; line-height: 24px; }
+  small { color: #6B7280; font-size: 13px; }
+  form { display: none; flex-direction: column; gap: 10px; width: 100%; max-width: 320px; }
+  form.on { display: flex; }
+  input { font-size: 17px; padding: 12px; border: 1px solid #9CA3AF; border-radius: 10px; direction: ltr; text-align: left; }
+  button { font-size: 16px; padding: 12px; border: 0; border-radius: 10px; background: #0F3D3A; color: #fff; }
+</style>
+</head>
+<body>
+<img id="logo" src="icon.png" alt="مدد">
+<p id="msg">نبحث عن حاسوب التطوير على شبكة البيت…</p>
+<small id="sub"></small>
+<form id="manual">
+  <p>اكتب عنوان الحاسوب كما يظهر فيه (مثل 192.168.1.20):</p>
+  <input id="host" inputmode="decimal" autocomplete="off" placeholder="192.168.1.20">
+  <button>اتصال</button>
+</form>
+<script>
+(function () {
+  // UA: «MadadDev/<app>/<port>/<اسم الحاسوب>» — يضعه capacitor.config.ts في وضع التطوير وحده
+  var m = /MadadDev\/(\w+)\/(\d+)\/([\w-]*)/.exec(navigator.userAgent) || [];
+  var app = m[1] || "customer", port = m[2] || "5182", pc = m[3] || "";
+  var KEY = "madad.dev.host";
+  var msg = document.getElementById("msg"), sub = document.getElementById("sub"), form = document.getElementById("manual");
+
+  function probe(host, ms) {
+    return new Promise(function (ok) {
+      var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); ok(false); }, ms);
+      fetch("http://" + host + ":" + port + "/madad-dev.json", { signal: ctl.signal, cache: "no-store" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) { clearTimeout(t); ok(!!(j && j.madad === "dev")); })
+        .catch(function () { clearTimeout(t); ok(false); });
+    });
+  }
+
+  function open(host) {
+    try { localStorage.setItem(KEY, host); } catch (e) { /* يكفي أن يفتح */ }
+    msg.textContent = "وجدنا الحاسوب — نفتح التطبيق…";
+    location.replace("http://" + host + ":" + port + "/");
+  }
+
+  // بحث في شبكة /24: دفعات متوازية بمهلة قصيرة
+  function scan(prefix) {
+    var hosts = [], i;
+    for (i = 1; i < 255; i++) hosts.push(prefix + "." + i);
+    var found = null, idx = 0;
+    function batch() {
+      if (found || idx >= hosts.length) return Promise.resolve(found);
+      var part = hosts.slice(idx, idx + 64); idx += 64;
+      return Promise.all(part.map(function (h) { return probe(h, 1200).then(function (ok) { if (ok && !found) found = h; }); }))
+        .then(batch);
+    }
+    return batch();
+  }
+
+  function manual(why) {
+    msg.textContent = why;
+    sub.textContent = "";
+    form.className = "on";
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var h = document.getElementById("host").value.trim();
+    if (!h) return;
+    msg.textContent = "نجرّب " + h + "…";
+    probe(h, 3000).then(function (ok) { ok ? open(h) : manual("لم يردّ الحاسوب على هذا العنوان. تأكد أن Docker يعمل وأن الهاتف على شبكة البيت نفسها."); });
+  });
+
+  var timer;
+  var logo = document.getElementById("logo");
+  logo.addEventListener("touchstart", function () { timer = setTimeout(function () { manual("اكتب العنوان يدوياً:"); }, 1500); });
+  logo.addEventListener("touchend", function () { clearTimeout(timer); });
+
+  var last = null;
+  try { last = localStorage.getItem(KEY); } catch (e) { /* لا ذاكرة */ }
+
+  (async function () {
+    if (last && await probe(last, 2000)) return open(last);
+    if (pc) {
+      sub.textContent = pc + ".local";
+      if (await probe(pc + ".local", 2500)) return open(pc + ".local");
+    }
+    var prefixes = [];
+    if (last && /^\d+\.\d+\.\d+\.\d+$/.test(last)) prefixes.push(last.split(".").slice(0, 3).join("."));
+    ["192.168.1", "192.168.0", "192.168.8", "192.168.100", "10.0.0"].forEach(function (p) { if (prefixes.indexOf(p) < 0) prefixes.push(p); });
+    for (var i = 0; i < prefixes.length; i++) {
+      sub.textContent = "نبحث في " + prefixes[i] + ".x";
+      var h = await scan(prefixes[i]);
+      if (h) return open(h);
+    }
+    manual("لم نجد الحاسوب تلقائياً.");
+  })();
+})();
+</script>
+</body>
+</html>

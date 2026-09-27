@@ -1,20 +1,30 @@
 /**
- * غلاف Capacitor رقيق (§14، كما في رَفّ): الحزمة لا تحمل الكود، بل نافذة على ما تخدمه الواجهة الآن.
+ * غلاف Capacitor رقيق (§14، كما في رَفّ): الحزمة لا تحمل الكود، بل نافذة على ما تخدمه الواجهة.
  *
- * نسخة تطوير (§12-ك ٤): العنوان `localhost` على الهاتف، و`adb reverse` يجسره إلى جهاز المطوّر حيث تُخدم
- * الواجهة مبنيّةً و`/api` إلى خلفية التطوير. `cleartext` للتطوير وحده عبر USB، ويُغلق يوم يصير العنوان https
- * (madad.tajora.ly) — وحينها يُبدَّل هذا السطر وحده.
+ * الإنتاج (الافتراضي): `server.url` على https في نطاق مَدَد، بلا نص صريح ولا غلاف تطوير.
+ * التطوير (`MADAD_SHELL=dev npx cap sync`، طلب المالك 27/09): الحزمة تحمل ui/dev-shell وحده، يجد حاسوب التطوير على
+ * شبكة البيت (آخر عنوان ← اسم الحاسوب .local ← بحث ← خانة يدوية) ثم يفتح التطبيق منه بـhttp. اسم الحاسوب يُقرأ
+ * وقت البناء ولا يُكتب في المستودع. ui/scripts/check-shell.mjs يثبت أن الإنتاج خالٍ من هذا كله.
  */
+import { hostname } from "node:os";
+
 import type { CapacitorConfig } from "@capacitor/cli";
 
-const config: CapacitorConfig = {
-  appId: "ly.madad.supplier",
-  appName: "مَدَد — المورد",
-  webDir: "dist",
-  server: {
-    url: "http://localhost:5183",
-    cleartext: true,
-  },
-};
+const dev = process.env.MADAD_SHELL === "dev";
+
+const config: CapacitorConfig = dev
+  ? {
+      appId: "ly.madad.supplier",
+      appName: "مَدَد — المورد",
+      webDir: "../ui/dev-shell",
+      android: { allowMixedContent: true, appendUserAgent: `MadadDev/supplier/5183/${hostname().replace(/[^\w-]/g, "")}` },
+      server: { cleartext: true, androidScheme: "http" },
+    }
+  : {
+      appId: "ly.madad.supplier",
+      appName: "مَدَد — المورد",
+      webDir: "dist",
+      server: { url: "https://supplier.madad.tajora.ly" },
+    };
 
 export default config;

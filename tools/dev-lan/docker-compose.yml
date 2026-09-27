@@ -1,0 +1,36 @@
+# مَدَد — خوادم التطوير على شبكة البيت (طلب المالك 27/09): الخلفية والواجهات الأربع مبنيّةً خلف nginx واحد.
+# تقوم وحدها مع Docker (restart: always). الهاتف يصل المنافذ 5181–5184 وحدها عبر الشبكة المحلية الخاصة؛
+# الخلفية بلا منفذ على الشبكة (تُطلب عبر /api من nginx)، ولها 127.0.0.1:8000 للحاسوب وحده.
+# القاعدة: حاوية madad-pg القائمة، موصولة بشبكة madad-dev (تُنشأ مرة: انظر README.md).
+name: madad-dev
+
+services:
+  api:
+    image: madad-backend:dev
+    container_name: madad-dev-api
+    restart: always
+    env_file: [.env]
+    environment:
+      MADAD_ENV: development
+      MADAD_OTP_SENDER: console
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ../../backend:/app
+    command: ["uvicorn", "--factory", "app.main:create_app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["127.0.0.1:8000:8000"]
+    networks: [madad-dev]
+
+  web:
+    image: nginx:alpine
+    container_name: madad-dev-web
+    restart: always
+    depends_on: [api]
+    volumes:
+      - ../..:/apps:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports: ["5181:5181", "5182:5182", "5183:5183", "5184:5184"]
+    networks: [madad-dev]
+
+networks:
+  madad-dev:
+    external: true

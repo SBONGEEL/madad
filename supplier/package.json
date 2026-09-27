@@ -9,7 +9,8 @@
     "check:types": "tsc -b --noEmit",
     "check:tokens": "node ../ui/scripts/check-tokens.mjs src ../ui",
     "check:contract": "node ../ui/scripts/check-contract.mjs supplier",
-    "check": "npm run check:types && npm run check:tokens && npm run check:contract"
+    "check": "npm run check:types && npm run check:tokens && npm run check:contract && npm run check:shell",
+    "check:shell": "node ../ui/scripts/check-shell.mjs supplier"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.9",
