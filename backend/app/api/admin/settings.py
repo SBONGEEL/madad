@@ -13,7 +13,7 @@ from app.api.admin.common import P, city
 from app.api.deps import Principal, admin_user
 from app.core.db import Tx
 from app.core.errors import ApiError
-from app.schemas.admin import (AreaOverlapIn, AreaOverlapOut, ContactIn, ContactOut, OverlapCheckIn, OverlapHitOut, OverlapOut, AreaIn, AreaOut, ChannelOut, ChannelsIn, CogsIn, SettingsIn, SettingsOut, ZoneIn, ZoneOut)
+from app.schemas.admin import (PushTextIn, PushTextOut, AreaOverlapIn, AreaOverlapOut, ContactIn, ContactOut, OverlapCheckIn, OverlapHitOut, OverlapOut, AreaIn, AreaOut, ChannelOut, ChannelsIn, CogsIn, SettingsIn, SettingsOut, ZoneIn, ZoneOut)
 from app.services.otp.providers import configured
 
 router = APIRouter()
@@ -201,3 +201,19 @@ async def set_contact(body: ContactIn, request: Request, p: Principal = Depends(
         await t.run("UPDATE city_settings SET contact_phone = :p, contact_whatsapp = :w WHERE city = :c",
                     p=body.phone, w=body.whatsapp, c=city(request))
         return await _contact(t, city(request))
+
+
+# ——— §12-ي ن-4: نص الإشعار على الشاشة المقفلة (عام ابتداءً) — النص نفسه يُبنى في القاعدة (push_text) ————
+@router.get("/settings/push-text", response_model=PushTextOut, **P("settings"))
+async def push_text(request: Request, p: Principal = Depends(admin_user)) -> PushTextOut:
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        return PushTextOut(mode=await t.val("SELECT push_text_mode::text FROM city_settings WHERE city = :c", c=city(request)))
+
+
+@router.put("/settings/push-text", response_model=PushTextOut, **P("settings"))
+async def set_push_text(body: PushTextIn, request: Request, p: Principal = Depends(admin_user)) -> PushTextOut:
+    """يسري على الإشعارات الجديدة، ويُدقَّق (zz_audit على city_settings)."""
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        await t.run("UPDATE city_settings SET push_text_mode = CAST(:m AS push_text_mode) WHERE city = :c",
+                    m=body.mode, c=city(request))
+        return PushTextOut(mode=body.mode)

@@ -42,6 +42,7 @@ function Review({ onPlaced }: { onPlaced: (o: Order2Out) => void }) {
     return api.get<CartOut>(`/api/customer/cart${qs({ branch_id: br })}`);
   }, [bv, isOwner]);
   const [notes, setNotes] = useState("");
+  const [recipient, setRecipient] = useState<string | null>(null);
   const { busy, run } = useAction();
   const purchaserConfirms = !isOwner && me.context?.ordering_mode === "owner_confirms";
 
@@ -73,9 +74,11 @@ function Review({ onPlaced }: { onPlaced: (o: Order2Out) => void }) {
   const blocked = bad || short || !!c.fee_error || c.delivery_fee == null;
   const branchId = c.branch?.id ?? null;
   const note = notes.trim() || null;
+  // المستلم الافتراضي للفرع حتى يغيّره المستخدم لهذه الطلبية
+  const who = recipient ?? c.branch?.default_recipient ?? "";
 
   async function place() {
-    const o = await run(() => api.post<Order2Out>(`/api/customer/cart/place`, { branch_id: branchId, notes: note }));
+    const o = await run(() => api.post<Order2Out>(`/api/customer/cart/place`, { branch_id: branchId, notes: note, recipient_name: who.trim() || null }));
     if (o) {
       refresh();
       onPlaced(o);
@@ -111,6 +114,8 @@ function Review({ onPlaced }: { onPlaced: (o: Order2Out) => void }) {
         <Icon name="banknote" />
         <span className="flex-1 font-bold">الدفع نقداً عند الاستلام</span>
       </Section>
+      <TextField label="مستلم الطلبية في الفرع (اختياري)" icon="user" value={who} onChange={setRecipient}
+        hint="المستلم الافتراضي للفرع — غيّره لهذه الطلبية فقط إن شئت" />
       <TextField label="ملاحظة للتوصيل (اختياري)" placeholder="مثال: الباب الخلفي بعد 10 صباحاً" value={notes} onChange={setNotes} multiline />
 
       <div className="flex flex-col gap-1.5">

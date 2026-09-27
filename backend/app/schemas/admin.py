@@ -6,7 +6,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import ClassVar
 
-from pydantic import BaseModel, Field, PrivateAttr, model_serializer
+from pydantic import BaseModel, Field, PrivateAttr, model_serializer, model_validator
 
 from app.core.money import Money, Qty
 from app.schemas.common import Out
@@ -305,6 +305,7 @@ class OrderDetailOut(Out):
     driver_pay: Money | None
     route_km: Decimal | None
     lines: list[OrderLineAdminOut]
+    route_km_source: str | None = None     # §12-ي ن-5: mapbox أو manual
     events: list[StatusEventOut]
 
 
@@ -439,6 +440,7 @@ class DriverSettleOut(Out):
     wallet_owed: Money
     cash_cap: Money | None
     over_cap: bool
+    next_payout_on: date | None = None     # §12-ي: الصرف الدوري وحده
 
 
 class HandoverIn(BaseModel):
@@ -462,6 +464,7 @@ class SupplierDueOut(Out):
     payout_cycle: str | None
     payable: Money
     last_payout: datetime | None
+    next_payout_on: date | None = None     # §12-ي
 
 
 class SupplierPayoutIn(BaseModel):
@@ -889,3 +892,110 @@ class ContactOut(Out):
 class ContactIn(BaseModel):
     phone: str | None = Field(default=None, pattern=r"^\+2189[0-9]{8}$")
     whatsapp: str | None = Field(default=None, pattern=r"^\+2189[0-9]{8}$")
+
+
+# ——— §12-ي: دورية أجر السائق (D-1) وموعد الصرف القادم ———
+class PayoutRuleIn(BaseModel):
+    """لقطة كاملة. العام: mode إلزامي. الاستثناء: NULL في حقل = العام فيه."""
+    driver_cycle: str | None = Field(default=None, pattern="^(daily|weekly|semimonthly|monthly)$")
+    mode: str | None = Field(default=None, pattern="^(rolling|fixed)$")
+    fixed_weekday: int | None = Field(default=None, ge=0, le=6)          # 0 الأحد … 6 السبت
+    fixed_month_day: int | None = Field(default=None, ge=1, le=28)
+    fixed_semimonth_days: list[int] | None = Field(default=None, min_length=2, max_length=2)
+
+    @model_validator(mode="after")
+    def _fixed_days(self) -> "PayoutRuleIn":
+        days = (self.fixed_weekday, self.fixed_month_day, self.fixed_semimonth_days)
+        if self.mode == "fixed" and any(d is None for d in days):
+            raise ValueError("payout_fixed_days_required")
+        if self.mode != "fixed" and any(d is not None for d in days):
+            raise ValueError("payout_fixed_days_only_for_fixed")
+        sm = self.fixed_semimonth_days
+        if sm is not None and not (1 <= sm[0] < sm[1] <= 28):
+            raise ValueError("payout_semimonth_days_invalid")
+        return self
+
+
+class PayoutRuleOut(Out):
+    driver_cycle: str | None
+    mode: str | None
+    fixed_weekday: int | None
+    fixed_month_day: int | None
+    fixed_semimonth_days: list[int] | None
+
+
+class PayoutRuleEventOut(PayoutRuleOut):
+    at: datetime
+    by: str
+
+
+class PayoutSettingsOut(Out):
+    general: PayoutRuleOut
+    history: list[PayoutRuleEventOut]
+
+
+class PartyPayoutOut(Out):
+    """ملف المورد أو السائق: استثناؤه إن وُجد، وما يسري عليه الآن، وموعد صرفه القادم."""
+    override: PayoutRuleOut | None
+    effective: PayoutRuleOut
+    payout_cycle: str | None        # المورد: دوريته من ملفه. السائق: استثناؤه أو العامة
+    pay_method: str | None = None   # السائق وحده
+    next_payout_on: date | None
+    history: list[PayoutRuleEventOut]
+
+
+# ——— §12-ي ن-4: نص الإشعار على الشاشة المقفلة ———
+class PushTextOut(Out):
+    mode: str
+
+
+class PushTextIn(BaseModel):
+    mode: str = Field(pattern="^(full|generic)$")
+
+
+# ——— §12-ي ن-3: النسخ الاحتياطية (المالك وحده) ———
+class BackupRunOut(Out):
+    id: int
+    started_at: datetime
+    finished_at: datetime | None
+    status: str
+    kind: str
+    location: str
+    file_name: str | None
+    byte_size: int | None
+    local_ok: bool
+    offsite_ok: bool
+    error: str | None
+    downloadable: bool
+
+
+class BackupPolicyOut(Out):
+    plan: str
+    location: str
+    at: datetime
+    by: str
+
+
+class BackupsOut(Out):
+    policy: BackupPolicyOut
+    alert: str | None             # failed | stale
+    alert_since: datetime | None
+    offsite_configured: bool
+    runs: list[BackupRunOut]
+
+
+class BackupPolicyIn(BaseModel):
+    plan: str = Field(pattern="^(daily30|daily7_weekly12)$")
+    location: str = Field(pattern="^(offsite|local|both)$")
+
+
+# ——— §12-ي ن-5: طول المسار من Mapbox ———
+class RoutingOut(Out):
+    status: str                   # ok | unavailable
+    reason: str | None = None     # no_key | error
+    route_km: Decimal | None = None
+
+
+class RouteComputeOut(Out):
+    routing: RoutingOut
+    detail: OrderDetailOut

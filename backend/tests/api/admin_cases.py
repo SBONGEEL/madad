@@ -4,7 +4,11 @@
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from tests.db.world import act
+
+BACKUP_FILE = "madad-20260927-030000.mdbk"   # نسخة ناجحة محلية في العالم ليُنزّلها المالك (§12-ي ن-3)
 
 
 async def path_ids(db, live) -> dict:
@@ -23,9 +27,19 @@ async def path_ids(db, live) -> dict:
             "kind": "customer", "party_id": w.customer, "custody_id": 0, "pay_offer_id": 0, "media_id": w.media,
             "notification_id": await db.fetchval("INSERT INTO notifications (user_id, kind, title, body) VALUES ($1, "
                                                  "'broadcast', 't', 'b') RETURNING id", w.owner),
+            "run_id": await _backup(db),
             "zone_id": await db.fetchval("INSERT INTO delivery_zones (city, name_ar, fee) VALUES ('TIP', 'قرقارش', 10) RETURNING id"),
             "area_id": await db.fetchval("INSERT INTO delivery_areas (city, name_ar, fee, polygon) VALUES ('TIP', 'غرب', 15, "
                                          "'[[32.8,13.1],[32.8,13.3],[33.0,13.3]]') RETURNING id")}
+
+
+async def _backup(db) -> int:
+    local = Path("storage/backups")
+    local.mkdir(parents=True, exist_ok=True)
+    (local / BACKUP_FILE).write_bytes(b"MADADBK1-test")
+    return await db.fetchval("INSERT INTO backup_runs (kind, plan, location, status, finished_at, file_name, byte_size, "
+                             "sha256, local_ok) VALUES ('daily', 'daily7_weekly12', 'local', 'ok', now(), $1, 13, "
+                             "repeat('a', 64), true) RETURNING id", BACKUP_FILE)
 
 
 async def _dispute(db, live) -> int:
@@ -97,6 +111,13 @@ WRITES = {
     ("PUT", "/api/admin/zones/{zone_id}"): lambda ids: {"name_ar": "x", "fee": "1"},
     ("POST", "/api/admin/areas"): lambda ids: {"name_ar": "x", "fee": "1", "polygon": [[1, 1], [1, 2], [2, 2]]},
     ("PUT", "/api/admin/areas/{area_id}"): lambda ids: {"name_ar": "x", "fee": "1", "polygon": [[1, 1], [1, 2], [2, 2]]},
+    # §12-ي: دورية أجر السائق وموعد الصرف، ونص الإشعار، والنسخ الاحتياطية، وطول المسار من Mapbox
+    ("PUT", "/api/admin/settings/payout"): lambda ids: {"mode": "rolling", "driver_cycle": "weekly"},
+    ("PUT", "/api/admin/drivers/{driver_id}/payout"): lambda ids: {"driver_cycle": "daily"},
+    ("PUT", "/api/admin/suppliers/{supplier_id}/payout"): lambda ids: {"mode": "rolling"},
+    ("PUT", "/api/admin/settings/push-text"): lambda ids: {"mode": "generic"},
+    ("PUT", "/api/admin/backups/policy"): lambda ids: {"plan": "daily30", "location": "both"},
+    ("POST", "/api/admin/orders/{order_id}/route-km/compute"): lambda ids: {},
     # الأمانة (معتمد في §12-ز)
     ("POST", "/api/admin/custody/{custody_id}/decide"): lambda ids: {"fate": "return_supplier"},
 }

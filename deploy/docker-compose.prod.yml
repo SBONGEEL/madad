@@ -1,5 +1,5 @@
 # مَدَد — تشغيل الإنتاج (§14): القاعدة، والخلفية (مع عامل الإشعارات داخلها)، والواجهات الأربع خلف nginx،
-# ونفق Cloudflare. لا منفذ مفتوح للعالم غير النفق. كل سرّ من .env على الخادم.
+# وخدمة النسخ الاحتياطية (§12-ي ن-3)، ونفق Cloudflare. لا منفذ مفتوح للعالم غير النفق. كل سرّ من .env على الخادم.
 name: madad
 
 services:
@@ -38,7 +38,37 @@ services:
       migrate: {condition: service_completed_successfully}
     volumes:
       - madad_media:/data/media
+      - madad_backups:/data/backups:ro      # تنزيل المالك للنسخة المحلية (مشفّرة كما هي)
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+
+  # النسخ الاحتياطية (§12-ي ن-3): حاوية مستقلة. كلمة سر التشفير في .env.backup وحده — لا تصل الخلفية.
+  backup:
+    build: {context: ../backend}
+    restart: unless-stopped
+    env_file: [.env, .env.backup]
+    environment:
+      MADAD_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    volumes:
+      - madad_media:/data/media:ro
+      - madad_backups:/data/backups
+    command: ["python", "-m", "app.backup", "worker"]
+
+  # أداة الاسترجاع والتحقق — لا تعمل وحدها (profile «tools»). الاستعمال في docs/DEPLOY-MADAD.md، البند ٥.
+  restore:
+    profiles: ["tools"]
+    build: {context: ../backend}
+    env_file: [.env, .env.backup]
+    environment:
+      MADAD_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on: {db: {condition: service_healthy}}
+    volumes:
+      - madad_media:/data/media
+      - madad_backups:/data/backups
+      - ./restore:/restore
+    entrypoint: ["python", "-m", "app.backup"]
 
   web:
     build:
@@ -57,3 +87,4 @@ services:
 volumes:
   madad_db:
   madad_media:
+  madad_backups:

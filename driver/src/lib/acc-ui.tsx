@@ -1,8 +1,11 @@
-/** أجزاء مشتركة بين شاشات الحساب والمال في تطبيق السائق: صفحة الدخول، رأس الخطوة، والتسميات. */
+/** أجزاء مشتركة بين شاشات الحساب والمال في تطبيق السائق: صفحة الدخول، رأس الخطوة، مفتاح التوفر، والتسميات. */
 import type { ReactNode } from "react";
 
 import * as fmt from "@ui/fmt";
-import type { Tone } from "@ui/kit";
+import { Switch, type Tone, useAction } from "@ui/kit";
+import { api } from "@/api/client";
+import type { Me2Out } from "@/api/types";
+import { useSession } from "@/session";
 
 /** صفحة الدخول قبل الجلسة: عمود واحد، والأزرار في الأسفل. */
 export function AuthPage({ children }: { children: ReactNode }) {
@@ -16,6 +19,26 @@ export function StepHead({ step, title, sub }: { step?: string; title?: ReactNod
       {title ? <h1 className="m-0 text-22 font-bold">{title}</h1> : null}
       {sub ? <span className="text-15 text-ink-muted">{sub}</span> : null}
     </>
+  );
+}
+
+/** «أستقبل طلبيات الآن» (§12-ط): غير المتاح لا تُعرض عليه طلبيات ولا يقبل؛ قد يُسند إليه مَدَد يدوياً مع تنبيه. */
+export function Availability({ accepting, children }: { accepting: boolean; children?: ReactNode }) {
+  const { refresh } = useSession();
+  const act = useAction();
+  async function set(v: boolean) {
+    const r = await act.run(() => api.put<Me2Out>(`/api/driver/availability`, { accepting: v }),
+      v ? "أنت متاح: تصلك الطلبيات الجديدة" : "أنت غير متاح: لا تُعرض عليك طلبيات");
+    if (r) refresh();
+  }
+  return (
+    <div className="flex flex-col gap-1.5 p-3 bg-surface border border-border rounded-md text-14">
+      <div className="flex justify-between items-center gap-2">
+        <span className="font-bold">أستقبل طلبيات الآن</span>
+        <Switch checked={accepting} label="أستقبل طلبيات الآن" disabled={act.busy} onChange={(v) => void set(v)} />
+      </div>
+      {children ? <span className="text-ink-muted">{children}</span> : null}
+    </div>
   );
 }
 

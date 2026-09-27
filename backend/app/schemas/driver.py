@@ -39,6 +39,7 @@ class StopOut(Out):
     lines: list[StopLineOut]
     eta_at: datetime | None = None       # §12-ط: موعد وصوله للمورد
     arrived_at: datetime | None = None   # «وصلت» — يراه المورد «السائق عندك»
+    eta_source: str | None = None        # §12-ي ن-5: mapbox (محسوب) أو manual (كتبه السائق)
 
 
 class OrderSummaryOut(Out):
@@ -107,6 +108,17 @@ class AvailabilityIn(BaseModel):
 
 class EtaIn(BaseModel):
     eta_at: datetime
+
+
+class PositionIn(BaseModel):
+    """موقع السائق الآن — يُحسب منه الموعد ولا يُحفظ."""
+    lat: Decimal = Field(ge=-90, le=90)
+    lng: Decimal = Field(ge=-180, le=180)
+
+
+class RoutingOut(Out):
+    status: str                   # ok | unavailable
+    reason: str | None = None     # no_key | error
 
 
 class MediaOut(Out):
@@ -253,9 +265,11 @@ class WalletOut(Out):
     wage_due: Money
     pay_method: str | None
     handover_due: Money
-    # §12-ط: الصرف القادم. المقاصّة: عند تسليمك القادم للكاش. الدوري: بانتظار قرار دوريته (null)
+    # §12-ط/§12-ي: الصرف القادم. المقاصّة: عند تسليمك القادم للكاش (at_next_handover). الدوري: تاريخه من
+    # دوريته (periodic)، أو pending_decision ما دام المالك لم يضبط الدورية العامة ولا استثناءه.
     next_payout_on: date | None = None
     next_payout_rule: str | None = None
+    payout_cycle: str | None = None
 
 
 class SettlementOut(Out):
@@ -286,3 +300,8 @@ class ReadIn(BaseModel):
 class DeviceIn(BaseModel):
     fcm_token: str = Field(min_length=10, max_length=4096)
     platform: str = Field(pattern="^(android|web)$")
+
+
+class EtaAutoOut(Out):
+    routing: RoutingOut
+    order: Order2Out

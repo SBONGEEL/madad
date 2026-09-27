@@ -71,6 +71,41 @@ export interface AuditOut {
   changes: Record<string, unknown>;
 }
 
+export interface BackupPolicyIn {
+  plan: string;
+  location: string;
+}
+
+export interface BackupPolicyOut {
+  plan: string;
+  location: string;
+  at: string;
+  by: string;
+}
+
+export interface BackupRunOut {
+  id: number;
+  started_at: string;
+  finished_at: string | null;
+  status: string;
+  kind: string;
+  location: string;
+  file_name: string | null;
+  byte_size: number | null;
+  local_ok: boolean;
+  offsite_ok: boolean;
+  error: string | null;
+  downloadable: boolean;
+}
+
+export interface BackupsOut {
+  policy: BackupPolicyOut;
+  alert: string | null;
+  alert_since: string | null;
+  offsite_configured: boolean;
+  runs: BackupRunOut[];
+}
+
 export interface BranchOut {
   id: number;
   name: string;
@@ -345,6 +380,7 @@ export interface DriverSettleOut {
   wallet_owed: string;
   cash_cap: string | null;
   over_cap: boolean;
+  next_payout_on?: string | null;
 }
 
 export interface EntryOut {
@@ -448,6 +484,7 @@ export interface OrderDetailOut {
   driver_pay: string | null;
   route_km: string | null;
   lines: OrderLineAdminOut[];
+  route_km_source?: string | null;
   events: StatusEventOut[];
 }
 
@@ -497,6 +534,15 @@ export interface OverlapOut {
   branches: Record<string, unknown>[];
 }
 
+export interface PartyPayoutOut {
+  override: PayoutRuleOut | null;
+  effective: PayoutRuleOut;
+  payout_cycle: string | null;
+  pay_method?: string | null;
+  next_payout_on: string | null;
+  history: PayoutRuleEventOut[];
+}
+
 export interface PayMethodIn {
   pay_method: string;
 }
@@ -518,6 +564,37 @@ export interface PayOfferOut {
 export interface PayoutIn {
   amount: number | string;
   note?: string | null;
+}
+
+export interface PayoutRuleEventOut {
+  driver_cycle: string | null;
+  mode: string | null;
+  fixed_weekday: number | null;
+  fixed_month_day: number | null;
+  fixed_semimonth_days: number[] | null;
+  at: string;
+  by: string;
+}
+
+export interface PayoutRuleIn {
+  driver_cycle?: string | null;
+  mode?: string | null;
+  fixed_weekday?: number | null;
+  fixed_month_day?: number | null;
+  fixed_semimonth_days?: number[] | null;
+}
+
+export interface PayoutRuleOut {
+  driver_cycle: string | null;
+  mode: string | null;
+  fixed_weekday: number | null;
+  fixed_month_day: number | null;
+  fixed_semimonth_days: number[] | null;
+}
+
+export interface PayoutSettingsOut {
+  general: PayoutRuleOut;
+  history: PayoutRuleEventOut[];
 }
 
 export interface PendingOut {
@@ -634,6 +711,14 @@ export interface PurchaserModeIn {
   purchaser_mode: string;
 }
 
+export interface PushTextIn {
+  mode: string;
+}
+
+export interface PushTextOut {
+  mode: string;
+}
+
 export interface QtyIn {
   qty: number | string;
 }
@@ -658,8 +743,19 @@ export interface ResolveIn {
   note?: string | null;
 }
 
+export interface RouteComputeOut {
+  routing: RoutingOut;
+  detail: OrderDetailOut;
+}
+
 export interface RouteKmIn {
   route_km: number | string;
+}
+
+export interface RoutingOut {
+  status: string;
+  reason?: string | null;
+  route_km?: string | null;
 }
 
 export interface SettingsIn {
@@ -763,6 +859,7 @@ export interface SupplierDueOut {
   payout_cycle: string | null;
   payable: string;
   last_payout: string | null;
+  next_payout_on?: string | null;
 }
 
 export interface SupplierPayoutIn {

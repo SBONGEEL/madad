@@ -27,6 +27,20 @@ class Settings(BaseSettings):
     media_dir: str = "storage/media"
     # العامل الدوري للإشعارات (ثوانٍ). 0 = معطّل؛ الاختبارات تستدعي الدالة مباشرة.
     notifier_interval: float = 15.0
+    # ن-5 (§12-ي): رمز Mapbox للخادم (طول المسار وموعد الوصول). فارغ = غير مضبوط ← إدخال يدوي بتنبيه.
+    # لا يُرسل إليه إلا الإحداثيات.
+    mapbox_token: str = ""
+    mapbox_base: str = "https://api.mapbox.com"
+    # ن-3 (§12-ي): النسخ الاحتياطية. كلمة سر التشفير في بيئة خدمة النسخ وحدها — لا في المستودع ولا في القاعدة.
+    backup_dir: str = "storage/backups"
+    backup_passphrase: str = ""
+    backup_hour: int = 3                      # ساعة النسخة اليومية بتوقيت طرابلس
+    # مساحة التخزين المنفصلة (S3-متوافقة: Cloudflare R2 أو Backblaze B2). فارغ = غير مضبوطة.
+    backup_s3_endpoint: str = ""
+    backup_s3_region: str = "auto"
+    backup_s3_bucket: str = ""
+    backup_s3_access_key: str = ""
+    backup_s3_secret_key: str = ""
 
     @model_validator(mode="after")
     def _no_console_in_production(self) -> "Settings":

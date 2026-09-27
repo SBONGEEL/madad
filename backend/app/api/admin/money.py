@@ -60,7 +60,8 @@ async def _drivers(t: Tx, c: str) -> list[DriverSettleOut]:
     rows = await t.all(
         "SELECT d.id, d.full_name, d.pay_method::text AS pay_method, "
         "coalesce((SELECT balance FROM ledger_accounts WHERE kind = 'driver_cash' AND driver_id = d.id), 0) AS cash_held, "
-        "-coalesce((SELECT balance FROM ledger_accounts WHERE kind = 'driver_wallet' AND driver_id = d.id), 0) AS wallet_owed "
+        "-coalesce((SELECT balance FROM ledger_accounts WHERE kind = 'driver_wallet' AND driver_id = d.id), 0) AS wallet_owed, "
+        "driver_next_payout(d.id) AS next_payout_on "
         "FROM drivers d WHERE d.city = :c AND d.status = 'approved' ORDER BY d.full_name", c=c)
     return [DriverSettleOut(**r, cash_cap=cap, over_cap=cap is not None and r["cash_held"] > cap) for r in rows]
 
@@ -99,7 +100,8 @@ async def _dues(t: Tx, c: str) -> list[SupplierDueOut]:
     rows = await t.all(
         "SELECT s.id, s.name, s.payout_cycle::text AS payout_cycle, "
         "-coalesce((SELECT balance FROM ledger_accounts WHERE kind = 'supplier_payable' AND supplier_id = s.id), 0) AS payable, "
-        "(SELECT max(created_at) FROM supplier_payouts WHERE supplier_id = s.id) AS last_payout "
+        "(SELECT max(created_at) FROM supplier_payouts WHERE supplier_id = s.id) AS last_payout, "
+        "supplier_next_payout(s.id) AS next_payout_on "
         "FROM suppliers s WHERE s.city = :c AND s.status IN ('approved', 'suspended') ORDER BY payable DESC, s.name", c=c)
     return [SupplierDueOut(**r) for r in rows]
 

@@ -11,7 +11,7 @@ import type { IconName } from "@ui/icons";
 import { api } from "@/api/client";
 import type { BranchOut, MemberRowOut } from "@/api/types";
 import { acctError } from "@/lib/acct-http";
-import { BRANCH_STATUS, CUSTOMER_STATUS, Choice, KIND, PHONE_HINT } from "@/lib/acct-ui";
+import { BRANCH_STATUS, CUSTOMER_STATUS, Choice, ContactButtons, KIND, PHONE_HINT } from "@/lib/acct-ui";
 import { HomeHeader, Screen } from "@/lib/shell";
 import { useSession } from "@/session";
 
@@ -62,6 +62,13 @@ function Home() {
             <Icon name="log-out" /><span className="flex-1">خروج</span><Icon name="chevron-left" size={18} />
           </button>
         </nav>
+        {me.context?.contact_phone || me.context?.contact_whatsapp ? (
+          <section className="bg-surface border border-border rounded-md p-3 flex flex-col gap-1.5 text-14">
+            <span className="font-bold">تواصل مع مَدَد</span>
+            <span className="text-ink-muted">لأي سؤال عن طلبية أو صنف أو حسابك.</span>
+            <ContactButtons ctx={me.context} />
+          </section>
+        ) : null}
       </main>
     </>
   );

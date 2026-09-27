@@ -11,7 +11,8 @@ from app.api.admin.common import P, city, sees_costs
 from app.api.deps import Principal, admin_user
 from app.core.db import Tx
 from app.core.errors import ApiError
-from app.schemas.admin import (AssignIn, RouteKmIn, PayOfferDecisionIn, PayOfferOut, CancelIn, DisputeDetailOut, DisputeRowOut, DriverChoiceOut, OrderDetailOut,
+from app.services.routing import Unavailable
+from app.schemas.admin import (RouteComputeOut, RoutingOut, AssignIn, RouteKmIn, PayOfferDecisionIn, PayOfferOut, CancelIn, DisputeDetailOut, DisputeRowOut, DriverChoiceOut, OrderDetailOut,
                                OrderLineAdminOut, OrderRowOut, PlanLineIn, PlanLineOut, PlanOut, PlanStopOut, QtyIn,
                                ResolveIn, StatusEventOut)
 
@@ -38,7 +39,8 @@ async def _detail(t: Tx, order_id: int) -> OrderDetailOut:
     o = await t.one(ORDER_SQL + " WHERE o.id = :o", o=order_id)
     if o is None:
         raise ApiError(404, "order_not_found")
-    x = await t.one("SELECT driver_id, dest_address, subtotal, delivery_fee, driver_pay, route_km FROM orders WHERE id = :o", o=order_id)
+    x = await t.one("SELECT driver_id, dest_address, subtotal, delivery_fee, driver_pay, route_km, route_km_source FROM orders "
+                    "WHERE id = :o", o=order_id)
     lines = await t.all("SELECT oi.id, oi.catalog_item_id, ci.name_ar, oi.unit::text AS unit, oi.qty, oi.unit_price, oi.line_total, "
                         "oi.delivered_qty FROM order_items oi JOIN catalog_items ci ON ci.id = oi.catalog_item_id "
                         "WHERE oi.order_id = :o ORDER BY oi.id", o=order_id)
@@ -181,6 +183,27 @@ async def route_km(order_id: int, body: RouteKmIn, request: Request, p: Principa
     async with request.app.state.db.tx("admin", p.user_id) as t:
         await t.run("UPDATE orders SET route_km = :k WHERE id = :o", k=body.route_km, o=order_id)
         return await _detail(t, order_id)
+
+
+@router.post("/orders/{order_id}/route-km/compute", response_model=RouteComputeOut, **P("orders"))
+async def compute_route(order_id: int, request: Request, p: Principal = Depends(admin_user)) -> RouteComputeOut:
+    """§12-ي ن-5: طول المسار من Mapbox — نقاط الاستلام بترتيبها ثم وجهة الطلبية، إحداثياتٍ وحدها.
+    يُحفظ بمصدره (mapbox) ويبقى للمالك تعديله (PUT route-km ← manual). تعذّر الحساب يُعاد صريحاً ولا يُغيَّر شيء."""
+    async with request.app.state.db.tx("admin", p.user_id) as t:
+        pts = await t.all(
+            "SELECT coalesce(l.lat, w.lat) AS lat, coalesce(l.lng, w.lng) AS lng FROM pickup_stops s "
+            "LEFT JOIN supplier_pickup_locations l ON l.id = s.pickup_location_id LEFT JOIN warehouses w ON w.id = s.warehouse_id "
+            "WHERE s.order_id = :o AND s.status <> 'cancelled' ORDER BY s.seq", o=order_id)
+        dest = await t.one("SELECT dest_lat AS lat, dest_lng AS lng FROM orders WHERE id = :o AND city = :c", o=order_id, c=city(request))
+        if dest is None:
+            raise ApiError(404, "order_not_found")
+        points = [(r["lat"], r["lng"]) for r in pts] + ([(dest["lat"], dest["lng"])] if dest["lat"] is not None else [])
+        try:
+            got = await request.app.state.router.route(points)
+        except Unavailable as e:
+            return RouteComputeOut(routing=RoutingOut(status="unavailable", reason=e.reason), detail=await _detail(t, order_id))
+        await t.run("UPDATE orders SET route_km = :k, route_km_source = 'mapbox' WHERE id = :o", k=got.km, o=order_id)
+        return RouteComputeOut(routing=RoutingOut(status="ok", route_km=got.km), detail=await _detail(t, order_id))
 
 
 @router.post("/orders/{order_id}/unassign", response_model=OrderDetailOut, **P("orders"))

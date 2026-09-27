@@ -181,6 +181,7 @@ export interface Pickup2Out {
   lines: PickupLineOut[];
   eta_at?: string | null;
   arrived_at?: string | null;
+  eta_source?: string | null;
 }
 
 export interface PickupLineOut {

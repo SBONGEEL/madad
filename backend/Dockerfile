@@ -12,7 +12,11 @@ WORKDIR /app
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libcairo2 libgdk-pixbuf-2.0-0 fontconfig \
+      postgresql-common ca-certificates \
+ && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+ && apt-get install -y --no-install-recommends postgresql-client-16 \
  && rm -rf /var/lib/apt/lists/*
+# ومعها عميل PostgreSQL 16 (بإصدار الخادم نفسه) للنسخ الاحتياطية واسترجاعها (§12-ي ن-3).
 
 # خطّا الهوية داخل الصورة: Tajawal للعربية وInter للأرقام واللاتينية.
 COPY app/pdf/fonts/ /usr/share/fonts/truetype/madad/

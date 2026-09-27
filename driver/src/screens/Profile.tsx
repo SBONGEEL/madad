@@ -9,11 +9,11 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import * as fmt from "@ui/fmt";
-import { Button, EmptyState, ErrorState, Icon, LoadingState, Note, Num, StatusBadge, Switch, cx, useAction, useLoad } from "@ui/kit";
+import { Button, EmptyState, ErrorState, Icon, LoadingState, Note, Num, StatusBadge, cx, useAction, useLoad } from "@ui/kit";
 import type { IconName } from "@ui/icons";
 import { api } from "@/api/client";
-import type { CustodyItemOut, Me2Out, NotificationOut } from "@/api/types";
-import { DRIVER_STATUS, PAY_METHOD, VEHICLE, lineQty, when } from "@/lib/acc-ui";
+import type { CustodyItemOut, NotificationOut } from "@/api/types";
+import { Availability, DRIVER_STATUS, PAY_METHOD, VEHICLE, lineQty, when } from "@/lib/acc-ui";
 import { HomeHeader, Screen } from "@/lib/shell";
 import { useSession } from "@/session";
 
@@ -220,22 +220,5 @@ function Notifications() {
           </div>
         )}
     </Screen>
-  );
-}
-
-/** «أستقبل طلبيات الآن» (§12-ط): غير المتاح لا تُعرض عليه طلبيات ولا يقبل؛ قد يُسند إليه مَدَد يدوياً مع تنبيه. */
-function Availability({ accepting }: { accepting: boolean }) {
-  const { refresh } = useSession();
-  const act = useAction();
-  async function set(v: boolean) {
-    const r = await act.run(() => api.put<Me2Out>(`/api/driver/availability`, { accepting: v }),
-      v ? "أنت متاح: تصلك الطلبيات الجديدة" : "أنت غير متاح: لا تُعرض عليك طلبيات");
-    if (r) refresh();
-  }
-  return (
-    <div className="flex justify-between items-center gap-2 p-3 bg-surface border border-border rounded-md">
-      <span className="font-bold">أستقبل طلبيات الآن</span>
-      <Switch checked={accepting} label="أستقبل طلبيات" disabled={act.busy} onChange={(v) => void set(v)} />
-    </div>
   );
 }

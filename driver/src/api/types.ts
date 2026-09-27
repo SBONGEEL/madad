@@ -135,6 +135,11 @@ export interface DriverOut {
   accepting?: boolean;
 }
 
+export interface EtaAutoOut {
+  routing: RoutingOut;
+  order: Order2Out;
+}
+
 export interface EtaIn {
   eta_at: string;
 }
@@ -226,6 +231,11 @@ export interface PayOfferIn {
   amount: number | string;
 }
 
+export interface PositionIn {
+  lat: number | string;
+  lng: number | string;
+}
+
 export interface ReadIn {
   ids?: number[];
   all?: boolean;
@@ -248,6 +258,11 @@ export interface RegistrationIn {
 export interface ResetCompleteIn {
   ticket: string;
   password: string;
+}
+
+export interface RoutingOut {
+  status: string;
+  reason?: string | null;
 }
 
 export interface SettlementOut {
@@ -291,6 +306,7 @@ export interface StopOut {
   lines: StopLineOut[];
   eta_at?: string | null;
   arrived_at?: string | null;
+  eta_source?: string | null;
 }
 
 export interface TicketOut {
@@ -317,4 +333,5 @@ export interface WalletOut {
   handover_due: string;
   next_payout_on?: string | null;
   next_payout_rule?: string | null;
+  payout_cycle?: string | null;
 }

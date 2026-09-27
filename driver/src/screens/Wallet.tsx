@@ -120,7 +120,9 @@ function PayMethod({ w }: { w: WalletOut }) {
   return (
     <section className="bg-secondary-tint rounded-lg p-3.5 flex flex-col gap-1.5">
       <span className="font-bold">{offset ? "عند التسوية القادمة — خصم من الكاش" : "عند التسوية القادمة — تسلّم الكاش كاملاً"}</span>
-      <span className="text-13 text-ink-muted">طريقتك يحددها مَدَد في ملفك، ولا تتغير من التطبيق.</span>
+      <span className="text-13 text-ink-muted">
+        {offset ? "طريقتك: خصم من الكاش. يُخصم أجرك عند تسليمك القادم للكاش." : "طريقتك يحددها مَدَد في ملفك، ولا تتغير من التطبيق."}
+      </span>
       {offset ? (
         <>
           <Row label="الكاش بحوزتك"><Num>{fmt.money(w.cash_held)}</Num></Row>

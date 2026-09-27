@@ -1,6 +1,7 @@
 /**
  * 03 تأكيد الاستلام (M-3، M-22): إثبات الاستلام برمزي QR يمسحه المورد أو برقم المورد أكتبه، ثم لكل صنف
  * «استلمت / نقص / رفض» والمستلم فعلاً، وصورة اختيارية، ثم «تأكيد النقطة» — القاعدة تضع حالة النقطة بنفسها.
+ * قبل ذلك (§12-ط): موعد الوصول المكتوب قبل مفتاح الخرائط، و«وصلت إلى نقطة الاستلام» يراه المورد «السائق عندك».
  */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -10,7 +11,7 @@ import * as fmt from "@ui/fmt";
 import { api } from "@/api/client";
 import type { HandoverOut, Order2Out, Order2SummaryOut, StopLineOut, StopOut } from "@/api/types";
 import { Screen } from "@/lib/shell";
-import { ACTIVE_ORDER, STOP_STATUS, qtyUnit, uploadPhoto, useWork, workError } from "@/lib/work-http";
+import { ACTIVE_ORDER, STOP_STATUS, qtyUnit, tripoliTime, tripoliToday, uploadPhoto, useWork, workError } from "@/lib/work-http";
 import { PhotoPick, PickupQr } from "@/lib/work-ui";
 import { useSession } from "@/session";
 
@@ -73,6 +74,10 @@ function StopForm({ order, stop, onOrder }: { order: Order2Out; stop: StopOut; o
   const photoAct = useWork();
   const confirmAct = useWork();
   const checking = useWork();
+  const etaAct = useWork();
+  const arriveAct = useWork();
+  const [eta, setEta] = useState(tripoliTime(stop.eta_at));
+  const etaIso = tripoliToday(eta);
   useEffect(() => setProven(stop.handed_over), [stop.handed_over]);
 
   const title = <>استلام — نقطة <Num>{stop.seq}</Num></>;
@@ -93,6 +98,33 @@ function StopForm({ order, stop, onOrder }: { order: Order2Out; stop: StopOut; o
           </div>
         ))}
         <Button block className="md-btn-xl" icon="navigation" onClick={() => nav(back)}>العودة إلى المسار</Button>
+      </Screen>
+    );
+  }
+
+  async function saveEta() {
+    if (!etaIso) return;
+    const r = await etaAct.run(() => api.put<Order2Out>(`/api/driver/stops/${stop.id}/eta`, { eta_at: etaIso }), { ok: "حُفظ موعد وصولك." });
+    if (r.v) onOrder(r.v);
+  }
+
+  async function arrive() {
+    const r = await arriveAct.run(() => api.post<Order2Out>(`/api/driver/stops/${stop.id}/arrive`), { ok: "علّمت الوصول. يراه المورد الآن." });
+    if (r.v) onOrder(r.v);
+  }
+
+  // قبل الوصول: الموعد والوصول وحدهما؛ الرمز والأصناف بعد تعليم الوصول (أو إن ثبت التسليم قبله)
+  if (!stop.arrived_at && !proven) {
+    return (
+      <Screen title={title} back={back}>
+        <b className="text-17">{stop.label}{stop.address_text ? <span className="text-14 md-muted font-normal"> · {stop.address_text}</span> : null}</b>
+        <TextField label="موعد وصولك إلى المورد" value={eta} onChange={setEta} numeric icon="clock" placeholder="10:30"
+          error={eta && !etaIso ? "اكتب الساعة هكذا: 10:30" : null}
+          hint={`يراه المورد: «يصل حوالي ${etaIso ? eta.trim() : "…"}». يُحسب آلياً حين يُضبط مفتاح الخرائط`} />
+        <Button variant="secondary" block icon="clock" loading={etaAct.busy} disabled={!etaIso} onClick={saveEta}>حفظ الموعد</Button>
+        <div className="mt-auto flex flex-col gap-2">
+          <Button variant="success" block className="md-btn-xl" icon="map-pin" loading={arriveAct.busy} onClick={arrive}>وصلت إلى نقطة الاستلام</Button>
+        </div>
       </Screen>
     );
   }
@@ -148,6 +180,12 @@ function StopForm({ order, stop, onOrder }: { order: Order2Out; stop: StopOut; o
   return (
     <Screen title={title} back={back}>
       <b className="text-17">{stop.label}{stop.address_text ? <span className="text-14 md-muted font-normal"> · {stop.address_text}</span> : null}</b>
+      {stop.arrived_at ? (
+        <div className="bg-success-tint rounded-md p-3 text-14 flex flex-col gap-1.5">
+          <b>علّمت الوصول <Num>{tripoliTime(stop.arrived_at)}</Num></b>
+          <span>يرى المورد الآن «السائق عندك».</span>
+        </div>
+      ) : null}
       {proven ? (
         <StatusBadge tone="success" icon="circle-check">ثبت الاستلام مع المورد</StatusBadge>
       ) : (

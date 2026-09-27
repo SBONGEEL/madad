@@ -103,10 +103,28 @@ const AR: Record<string, string> = {
   route_km_missing: "لم يحدد مَدَد مسافة هذه الطلبية بعد.",
   media_too_large: "الصورة أكبر من 10 ميغابايت.",
   media_type_unsupported: "الملف غير مدعوم: صورة JPG أو PNG أو WEBP.",
+  stop_already_arrived: "علّمت الوصول إلى هذه النقطة من قبل.",
 };
 
 export function workError(code: string, fallback?: string): string {
   return AR[code] ?? fallback ?? arabicError(code);
+}
+
+// ——— الوقت بتوقيت طرابلس (UTC+2 طوال السنة) ————————————————————————————————————————————
+const TRIPOLI = "Africa/Tripoli";
+
+/** «10:30» بتوقيت طرابلس أياً كانت منطقة الجهاز. */
+export function tripoliTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  return new Intl.DateTimeFormat("en-GB", { timeZone: TRIPOLI, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
+}
+
+/** «10:30» اليوم بتوقيت طرابلس ← ISO للسلك، أو null إن لم تكن ساعة صحيحة. */
+export function tripoliToday(hm: string): string | null {
+  const m = hm.trim().replace(/[.,٫]/, ":").match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (!m) return null;
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: TRIPOLI, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return `${ymd}T${m[1]!.padStart(2, "0")}:${m[2]}:00+02:00`;
 }
 
 export type Res<T> = { v: T; code: null } | { v: null; code: string };

@@ -16,10 +16,11 @@ from app.api.driver.core import driver
 from app.core.db import Tx
 from app.core.errors import ApiError
 from app.schemas.common import HandoverOut
-from app.schemas.driver import (EtaIn, AvailableOut, BatchIn, BatchTimesIn, BatchOut, CodeIn, ConfirmStopIn, CustodyItemOut, DisputeIn,
+from app.schemas.driver import (EtaAutoOut, PositionIn, RoutingOut, EtaIn, AvailableOut, BatchIn, BatchTimesIn, BatchOut, CodeIn, ConfirmStopIn, CustodyItemOut, DisputeIn,
                                 DisputeOut, ItemOut, Order2Out, Order2SummaryOut, OrderOut, PayOfferIn, StopLineOut,
                                 StopOut)
 from app.services import documents
+from app.services.routing import Unavailable
 
 router = APIRouter()
 
@@ -78,7 +79,7 @@ async def _stops(t: Tx, order_id: int) -> list[StopOut]:
     stops = await t.all(
         "SELECT s.id, s.seq, l.pickup_label AS label, s.status::text AS status, s.lat, s.lng, s.address_text, "
         "s.pickup_code, EXISTS (SELECT 1 FROM pickup_handovers h WHERE h.stop_id = s.id) AS handed_over, "
-        "ps.eta_at, ps.arrived_at FROM v_driver_stops s JOIN v_driver_stop_labels l ON l.stop_id = s.id "
+        "ps.eta_at, ps.arrived_at, ps.eta_source FROM v_driver_stops s JOIN v_driver_stop_labels l ON l.stop_id = s.id "
         "JOIN pickup_stops ps ON ps.id = s.id WHERE s.order_id = :o ORDER BY s.seq", o=order_id)
     lines = await t.all("SELECT id, stop_id, name_ar, unit::text AS unit, unit_size, planned_qty, collected_qty "
                         "FROM v_driver_stop_lines WHERE stop_id IN (SELECT id FROM pickup_stops WHERE order_id = :o) "
@@ -302,3 +303,21 @@ async def arrive(stop_id: int, request: Request, p: Principal = Depends(driver_u
         await _start(t, oid)
         await t.run("UPDATE pickup_stops SET arrived_at = now() WHERE id = :s", s=stop_id)
         return await load_order2(t, d, oid)
+
+
+@router.post("/stops/{stop_id}/eta/auto", response_model=EtaAutoOut)
+async def stop_eta_auto(stop_id: int, body: PositionIn, request: Request, p: Principal = Depends(driver_user)) -> EtaAutoOut:
+    """§12-ي ن-5: الموعد محسوباً من Mapbox — موقعه الآن ثم نقطة الاستلام، إحداثياتٍ وحدها (لا يُحفظ موقعه).
+    يبقى له تعديله (PUT eta ← manual). تعذّر الحساب يُعاد صريحاً ليكتبه بيده، ولا يُغيَّر شيء."""
+    async with request.app.state.db.tx("driver", p.user_id) as t:
+        d = await driver(t, p.user_id)
+        oid = await _stop_order(t, d, stop_id)
+        to = await t.one("SELECT lat, lng FROM v_driver_stops WHERE id = :s", s=stop_id)
+        try:
+            got = await request.app.state.router.route([(body.lat, body.lng), (to["lat"], to["lng"])])
+        except Unavailable as e:
+            return EtaAutoOut(routing=RoutingOut(status="unavailable", reason=e.reason), order=await load_order2(t, d, oid))
+        await _start(t, oid)
+        await t.run("UPDATE pickup_stops SET eta_at = now() + make_interval(secs => :x), eta_source = 'mapbox' WHERE id = :s",
+                    x=got.seconds, s=stop_id)
+        return EtaAutoOut(routing=RoutingOut(status="ok"), order=await load_order2(t, d, oid))

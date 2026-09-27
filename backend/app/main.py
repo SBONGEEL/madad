@@ -12,6 +12,7 @@ from app.core.config import Settings, get_settings
 from app.core.db import Db
 from app.services import notifier, pdf
 from app.services.media import Store
+from app.services.routing import Router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -35,6 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.db = Db(settings.database_url)
     app.state.media = Store(settings.media_dir)
+    app.state.router = Router(settings.mapbox_token, settings.mapbox_base)   # §12-ي ن-5
     app.state.otp_outbox = []  # قناة «console» وحدها تكتب هنا (تطوير واختبار)
     errors.install(app)
     for router in routers:

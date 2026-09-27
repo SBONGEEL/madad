@@ -2,6 +2,7 @@
  * 01 الطلبيات المتاحة وطلب جديد (M-18) + تنبيه الحمولة (05ب، M-9/M-13).
  * الطلبية الجارية أولاً إن وُجدت، ثم «طلب جديد» لكل طلبية متاحة: الأجر التقديري والمبلغ الذي تحصّله والحمولة،
  * وقبول بزر أخضر الأفعال، أو عرض أجرة مختلفة يقررها المالك. فوق سقف الكاش: الإسناد موقوف حتى التسوية.
+ * غير المتاح («أستقبل طلبيات الآن» مطفأ، §12-ط): المفتاح نفسه بدل القائمة.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -10,6 +11,7 @@ import { Button, Dialog, EmptyState, ErrorState, Icon, LoadingState, Money, Note
 import * as fmt from "@ui/fmt";
 import { api } from "@/api/client";
 import type { AvailableOut, Order2Out, WalletOut } from "@/api/types";
+import { Availability } from "@/lib/acc-ui";
 import { HomeHeader } from "@/lib/shell";
 import { useWork } from "@/lib/work-http";
 import { NotApproved, RouteMap } from "@/lib/work-ui";
@@ -18,7 +20,7 @@ import { useSession } from "@/session";
 const CURRENT_STATUS: Record<string, string> = { assigned: "أُسندت إليك", collecting: "يجري الجمع", partially_delivered: "وصل جزء" };
 
 export function Main() {
-  const { approved, current } = useSession();
+  const { approved, current, me } = useSession();
   return (
     <>
       <HomeHeader />
@@ -27,10 +29,20 @@ export function Main() {
           <>
             {current ? <CurrentCard id={current.id} name={current.customer_name} branch={current.branch_name}
               status={current.status} amount={current.amount_to_collect} /> : null}
-            <Available />
+            {me.driver?.accepting === false ? <Unavailable /> : <Available />}
           </>
         )}
       </main>
+    </>
+  );
+}
+
+function Unavailable() {
+  return (
+    <>
+      <Availability accepting={false}>أنت غير متاح: لا تُعرض عليك طلبيات ولا يُسند إليك شيء تلقائياً.</Availability>
+      <EmptyState icon="truck" title="أنت غير متاح الآن" body="فعّل «أستقبل طلبيات الآن» لتصلك الطلبيات الجديدة." />
+      <span className="text-13 text-ink-muted">قد يُسند إليك مَدَد طلبية يدوياً مع تنبيه.</span>
     </>
   );
 }

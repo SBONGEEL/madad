@@ -118,6 +118,7 @@ function BranchForm({ branch, onSaved }: { branch?: BranchOut; onSaved: (rows: B
   const [pin, setPin] = useState<Pin>({ lat: branch?.lat ?? "", lng: branch?.lng ?? "" });
   const [zone, setZone] = useState(branch?.zone_id != null ? String(branch.zone_id) : "");
   const [address, setAddress] = useState(branch?.address_text ?? "");
+  const [recipient, setRecipient] = useState(branch?.default_recipient ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -127,7 +128,8 @@ function BranchForm({ branch, onSaved }: { branch?: BranchOut; onSaved: (rows: B
   async function save() {
     setBusy(true);
     setErr(null);
-    const body = { name: name.trim(), lat: pin.lat.trim(), lng: pin.lng.trim(), zone_id: zone ? Number(zone) : null, address_text: address.trim() };
+    const body = { name: name.trim(), lat: pin.lat.trim(), lng: pin.lng.trim(), zone_id: zone ? Number(zone) : null, address_text: address.trim(),
+      default_recipient: recipient.trim() || null };
     try {
       const rows = branch
         ? await api.patch<BranchOut[]>(`/api/customer/branches/${branch.id}`, body)
@@ -146,6 +148,8 @@ function BranchForm({ branch, onSaved }: { branch?: BranchOut; onSaved: (rows: B
   return (
     <Screen title={branch ? "تعديل الفرع" : "فرع جديد"} back="/branches">
       <TextField label="اسم الفرع" value={name} onChange={setName} required disabled={busy} />
+      <TextField label="المستلم الافتراضي (اختياري)" icon="user" value={recipient} onChange={setRecipient} disabled={busy}
+        hint="يظهر للسائق عند التسليم، ويُغيَّر لكل طلبية" />
       <LocationPicker value={pin} onChange={setPin} hint="حرّك الخريطة لتضع الدبوس على باب الفرع" />
       {zones.data && zones.data.length ? (
         <Select label="الحي — من قائمة الأحياء" value={zone} onChange={setZone} disabled={busy}

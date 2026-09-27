@@ -1,10 +1,10 @@
-/** 03 الصنف (م-15): السعر، والمتاح اليوم حين يمنع الإعداد تجاوزه، والإضافة إلى السلة، وبدائل من التصنيف نفسه. */
+/** 03 الصنف (م-15): السعر، والمتاح اليوم حين يمنع الإعداد تجاوزه، والإضافة إلى السلة، و«نبّهني حين يتوفر» للنافد، وبدائل من التصنيف نفسه. */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { qs } from "@ui/client";
 import * as fmt from "@ui/fmt";
-import { Button, ErrorState, Icon, Money, Num, QtyStepper, StatusBadge, toast, useLoad } from "@ui/kit";
+import { Button, ErrorState, Icon, Money, Num, QtyStepper, StatusBadge, toast, useAction, useLoad } from "@ui/kit";
 import { api } from "@/api/client";
 import type { Catalog2Out, ItemDetailOut } from "@/api/types";
 import { cartBranchId, ItemList, mediaUrl, unitLabel, useBranchVersion, useCartQty } from "@/lib/cat-cart";
@@ -71,6 +71,7 @@ export function Product() {
           <>
             <div><StatusBadge tone="warning">نافد الآن</StatusBadge></div>
             <span className="text-15">لا يُضاف إلى السلة حتى يتوفر.</span>
+            {item.out_of_stock ? <StockAlert key={item.id} item={item} /> : null}
             {others.length ? <span className="text-13 text-ink-muted text-center">بدائل من «{category_name}» أدناه</span> : null}
           </>
         ) : (
@@ -84,6 +85,28 @@ export function Product() {
         </div>
       ) : null}
     </Screen>
+  );
+}
+
+/** تنبيه واحد حين يعود الصنف متاحاً، ثم يُلغى تلقائياً. */
+function StockAlert({ item }: { item: Catalog2Out }) {
+  const [on, setOn] = useState(!!item.alert);
+  const act = useAction();
+  const toggle = () =>
+    void act.run(async () => {
+      const r = on ? await api.del<ItemDetailOut>(`/api/customer/catalog/${item.id}/alert`)
+        : await api.post<ItemDetailOut>(`/api/customer/catalog/${item.id}/alert`);
+      setOn(!!r.item.alert);
+    });
+  if (!on) return <Button block icon="bell" loading={act.busy} onClick={toggle}>نبّهني حين يتوفر</Button>;
+  return (
+    <>
+      <div className="bg-success-tint rounded-md p-3 text-14 flex flex-col gap-1.5">
+        <b>سننبهك حين يعود «{item.name_ar}» متاحاً.</b>
+        <span>مرة واحدة، ثم يُلغى التنبيه تلقائياً.</span>
+      </div>
+      <Button block variant="secondary" icon="bell" loading={act.busy} onClick={toggle}>إلغاء التنبيه</Button>
+    </>
   );
 }
 

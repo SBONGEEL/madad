@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.admin import catalog, core, custody, money, orders, people, settings, warehouses
+from app.api.admin import backups, catalog, core, custody, money, orders, payouts, people, settings, warehouses
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-for sub in (core, catalog, orders, money, warehouses, people, settings, custody):
+for sub in (core, catalog, orders, money, warehouses, people, settings, custody, payouts, backups):
     router.include_router(sub.router)

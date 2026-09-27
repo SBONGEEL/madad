@@ -1,16 +1,17 @@
-/** الإعدادات — طرابلس (م-5، م-6، م-7، م-8، م-12، م-15، م-16، م-19، م-2، م-22، م-24، م-25).
+/** الإعدادات — طرابلس (م-5، م-6، م-7، م-8، م-12، م-15، م-16، م-19، م-2، م-22، م-24، م-25، ورقم التواصل §12-ط).
  * كل خيار يُحفظ عند اختياره بحقله وحده؛ حقول المبالغ تُحفظ بزر «حفظ» أعلى الصفحة (المتغيّر منها فقط). */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { qs } from "@ui/client";
+import { arabicError } from "@ui/errors";
 import * as fmt from "@ui/fmt";
 import {
   Button, ConfirmDialog, DataTable, Loader, Money, Note, Num, OptionGroup, PageHead, Section, SectionTitle, Select, StatusBadge,
   Switch, TextField, toast, useAction, useLoad,
 } from "@ui/kit";
 import { api } from "@/api/client";
-import type { AreaOverlapOut, AuditOut, ChannelOut, SettingsIn, SettingsOut, Visibility } from "@/api/types";
+import type { AreaOverlapOut, AuditOut, ContactOut, ChannelOut, SettingsIn, SettingsOut, Visibility } from "@/api/types";
 import { SETTING_LABEL, VALUE_LABEL, auditActor, showValue } from "@/lib/admin-labels";
 import { useSession } from "@/session";
 
@@ -277,7 +278,7 @@ export function Settings() {
 
       <div className="grid grid-cols-2 gap-4 items-start">
         <AreaOverlapCard />
-        <div />
+        <ContactCard />
       </div>
 
       <SectionTitle title="رموز التحقق" />
@@ -439,5 +440,41 @@ function AreaOverlapCard() {
         </>
       )}</Loader>
     </Section>
+  );
+}
+
+/** §12-ط: رقما «تواصل مع مَدَد» في تطبيقات العميل والمورد والسائق. يُكتبان كما يكتبهما الناس ويُرسلان +2189XXXXXXXX. */
+function ContactCard() {
+  const st = useLoad(() => api.get<ContactOut>(`/api/admin/settings/contact`));
+  return (
+    <Section title="رقم التواصل مع مَدَد" right={<StatusBadge tone="neutral">§12-ط</StatusBadge>}>
+      <span className="text-13 text-ink-muted">يظهر في تطبيقات العميل والمورد والسائق («تواصل مع مَدَد»). يُغيَّر في أي وقت ويُسجَّل تغييره.</span>
+      <Loader state={st}>{(d) => <ContactForm key={`${d.phone}|${d.whatsapp}`} d={d} onSaved={st.set} />}</Loader>
+    </Section>
+  );
+}
+
+function ContactForm({ d, onSaved }: { d: ContactOut; onSaved: (v: ContactOut) => void }) {
+  const act = useAction();
+  const [phone, setPhone] = useState(d.phone ? fmt.phoneLocal(d.phone) : "");
+  const [wa, setWa] = useState(d.whatsapp ? fmt.phoneLocal(d.whatsapp) : "");
+  // فارغ يمسح الرقم؛ غير الفارغ يجب أن يكون رقماً ليبياً
+  const norm = (v: string) => (v.trim() ? fmt.phoneE164(v) : null);
+  const bad = (v: string) => (v.trim() && !fmt.phoneE164(v) ? arabicError("phone_invalid") : null);
+  async function save() {
+    const v = await act.run(() => api.put<ContactOut>(`/api/admin/settings/contact`, { phone: norm(phone), whatsapp: norm(wa) }),
+      "حُفظ رقم التواصل — يظهر في التطبيقات الآن");
+    if (v) onSaved(v);
+  }
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <TextField label="رقم الاتصال" value={phone} onChange={setPhone} numeric icon="phone" placeholder="092 111 2233" error={bad(phone)} />
+        <TextField label="رقم واتساب" value={wa} onChange={setWa} numeric icon="send" placeholder="092 111 2233" error={bad(wa)} />
+      </div>
+      <div>
+        <Button icon="check" loading={act.busy} disabled={!!bad(phone) || !!bad(wa)} onClick={() => void save()}>حفظ</Button>
+      </div>
+    </>
   );
 }

@@ -109,6 +109,7 @@ CASES = {
     ("POST", "/api/driver/stops/{stop_id}/code"): lambda live: {"code": "000000"},
     ("PUT", "/api/driver/availability"): lambda live: {"accepting": True},
     ("PUT", "/api/driver/stops/{stop_id}/eta"): lambda live: {"eta_at": "2026-09-27T10:30:00+02:00"},
+    ("POST", "/api/driver/stops/{stop_id}/eta/auto"): lambda live: {"lat": "32.88", "lng": "13.19"},   # §12-ي ن-5
     ("POST", "/api/driver/stops/{stop_id}/confirm"): lambda live: {"lines": [{"line_id": 0, "collected_qty": "0"}]},
 }
 

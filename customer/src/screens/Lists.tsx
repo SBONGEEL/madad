@@ -14,7 +14,7 @@ import {
 } from "@ui/kit";
 import { api } from "@/api/client";
 import type {
-  CartOut, Catalog2Out, CategoryOut, ListDetailOut, ListOut, Order2SummaryOut, ReorderOut,
+  CartOut, Catalog2Out, CategoryOut, ItemDetailOut, ListDetailOut, ListOut, Order2SummaryOut, ReorderOut,
 } from "@/api/types";
 import { REMINDER_DAYS, daysText, itemsWord, qtyWithUnit, unitLabel } from "@/lib/ord-shared";
 import { OrdersTabs } from "@/lib/ord-tabs";
@@ -260,7 +260,6 @@ function Alternatives({ listBranch, missing }: { listBranch: number; missing: Li
   const catName = flat.find((c) => c.id === catId)?.name_ar;
   const missingIds = new Set(missing.map((m) => m.catalog_item_id));
   const options = (alts.data ?? []).filter((c) => c.orderable && !missingIds.has(c.id)).slice(0, 4);
-  const names = missing.map((m) => `«${m.name_ar} ${unitLabel(m.unit, m.unit_size)}»`).join(" و");
 
   const setQty = (item: Catalog2Out, v: number) =>
     void act.run(async () => {
@@ -271,9 +270,8 @@ function Alternatives({ listBranch, missing }: { listBranch: number; missing: Li
 
   return (
     <>
-      <Note tone="warning">
-        {names} {missing.length > 1 ? "غير متاحة" : "غير متاح"} الآن. اختر بديلاً{catName ? <> من «{catName}»</> : null} أو اطلب القائمة بدونها.
-      </Note>
+      {missing.map((m) => <MissingLine key={m.catalog_item_id} line={m} />)}
+      <span className="text-14 text-ink-muted">اختر بديلاً{catName ? <> من «{catName}»</> : null} أو اطلب القائمة بدونها.</span>
       <div className="font-bold text-15">بدائل</div>
       {alts.loading && !alts.data ? <LoadingState rows={2} />
         : alts.error && !alts.data ? <ErrorState compact title={alts.error.message} code={alts.error.code} onRetry={alts.reload} />
@@ -287,6 +285,28 @@ function Alternatives({ listBranch, missing }: { listBranch: number; missing: Li
             </div>
           ) : <div className="text-14 text-ink-muted">لا بدائل متاحة في هذا التصنيف الآن.</div>}
     </>
+  );
+}
+
+/** سطر القائمة غير المتاح، و«نبّهني حين يتوفر» له (تنبيه واحد ثم يُلغى تلقائياً). */
+function MissingLine({ line }: { line: ListDetailOut["lines"][number] }) {
+  const [on, setOn] = useState(!!line.alert);
+  const act = useAction();
+  const toggle = () =>
+    void act.run(async () => {
+      const r = on ? await api.del<ItemDetailOut>(`/api/customer/catalog/${line.catalog_item_id}/alert`)
+        : await api.post<ItemDetailOut>(`/api/customer/catalog/${line.catalog_item_id}/alert`);
+      setOn(!!r.item.alert);
+    }, on ? "أُلغي التنبيه." : "سننبهك حين يتوفر.");
+  return (
+    <div className="bg-warning-tint rounded-md p-3 text-14 flex flex-col gap-1.5">
+      <div className="flex justify-between items-center gap-2">
+        <b>{line.name_ar} {unitLabel(line.unit, line.unit_size)}</b>
+        <StatusBadge tone="warning">غير متاح</StatusBadge>
+      </div>
+      <span className="text-13 text-ink-muted">{on ? "سننبهك حين يعود متاحاً — مرة واحدة." : "نفد عند كل الموردين الآن."}</span>
+      <Button size="sm" variant="secondary" icon="bell" loading={act.busy} onClick={toggle}>{on ? "إلغاء التنبيه" : "نبّهني حين يتوفر"}</Button>
+    </div>
   );
 }
 

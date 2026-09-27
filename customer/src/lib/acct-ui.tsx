@@ -1,7 +1,8 @@
-/** أجزاء مشتركة بين شاشات الحساب: صفحة الدخول بلا شريط، ورأس الخطوة، واختيار الأزرار المتجاورة، وتسميات الحالات. */
+/** أجزاء مشتركة بين شاشات الحساب: صفحة الدخول بلا شريط، ورأس الخطوة، واختيار الأزرار المتجاورة، وتسميات الحالات، وأزرار التواصل. */
 import type { ReactNode } from "react";
 
-import { cx, type Tone } from "@ui/kit";
+import { cx, Icon, type Tone } from "@ui/kit";
+import type { ContextOut } from "@/api/types";
 
 /** صفحة الدخول والتسجيل قبل الجلسة: عمود واحد، والأزرار في الأسفل (margin-top: auto). */
 export function AuthPage({ children }: { children: ReactNode }) {
@@ -67,3 +68,17 @@ export const BRANCH_STATUS: Record<string, [string, Tone]> = {
 };
 
 export const PHONE_HINT = "اكتب رقماً ليبياً صحيحاً، مثل 091 000 0001";
+
+/** «اتصال» و«واتساب» برقمَي مَدَد من السياق؛ يختفي الزر الذي لا رقم له، ولا شيء إن غاب الرقمان. */
+export function ContactButtons({ ctx, block }: { ctx: ContextOut | null | undefined; block?: boolean }) {
+  const phone = ctx?.contact_phone;
+  const wa = ctx?.contact_whatsapp;
+  if (!phone && !wa) return null;
+  const cls = cx("md-btn md-btn-secondary no-underline", block && "flex-1");
+  return (
+    <div className="flex gap-2">
+      {phone ? <a href={`tel:${phone}`} className={cls}><Icon name="phone" size={18} />اتصال</a> : null}
+      {wa ? <a href={`https://wa.me/${wa.replace("+", "")}`} target="_blank" rel="noreferrer" className={cls}><Icon name="send" size={18} />واتساب</a> : null}
+    </div>
+  );
+}

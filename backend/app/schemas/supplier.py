@@ -187,6 +187,7 @@ class Pickup2Out(Out):
     lines: list[PickupLineOut]
     eta_at: datetime | None = None         # §12-ط: موعد وصول السائق (يكتبه قبل مفتاح الخرائط)
     arrived_at: datetime | None = None     # «السائق عندك»
+    eta_source: str | None = None          # §12-ي ن-5: mapbox (محسوب) أو manual (يكتبه السائق)
 
 
 class ReceivedOut(Out):

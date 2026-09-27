@@ -1,17 +1,19 @@
 /**
  * 08 تتبّع الطلبية (م-19): الدفعة الحالية وما يصل الآن ولاحقاً، وسجل الحالات، وبطاقة السائق حسب إعدادَي المالك،
- * والمبلغ عند الاستلام. المسلَّمة: جدول الأصناف وإعادة الطلب والإيصال والنزاع. تتحدث كل 20 ثانية حتى تنتهي.
+ * والمبلغ عند الاستلام، والإلغاء ما دام مسموحاً (وإلا التواصل مع مَدَد). المسلَّمة: جدول الأصناف وإعادة الطلب والإيصال والنزاع.
+ * تتحدث كل 20 ثانية حتى تنتهي.
  */
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import * as fmt from "@ui/fmt";
 import {
-  Button, type Column, DataTable, ErrorState, Icon, LoadingState, Money, Note, Num, ORDER_STATUS, OrderStatusBadge,
-  QtyStepper, Section, cx, toast, useAction, useLoad,
+  Button, type Column, ConfirmDialog, DataTable, ErrorState, Icon, LoadingState, Money, Note, Num, ORDER_STATUS, OrderStatusBadge,
+  QtyStepper, Section, TextField, cx, toast, useAction, useLoad,
 } from "@ui/kit";
 import { api } from "@/api/client";
 import type { BatchOut, Order2Out, OrderLineOut, ReorderOut } from "@/api/types";
+import { ContactButtons } from "@/lib/acct-ui";
 import { get, saveBlob } from "@/lib/ord-http";
 import { ENDED, dayTime, qtyWithUnit, unitLabel } from "@/lib/ord-shared";
 import { Screen } from "@/lib/shell";
@@ -203,8 +205,10 @@ function LinesTable({ order, delivered }: { order: Order2Out; delivered: boolean
 export function Tracking() {
   const { orderId = "" } = useParams();
   const nav = useNavigate();
-  const { setCart, refresh } = useSession();
+  const { me, setCart, refresh } = useSession();
   const act = useAction();
+  const [cancelling, setCancelling] = useState(false);
+  const [reason, setReason] = useState("");
   const order = useLoad(() => api.get<Order2Out>(`/api/customer/orders/${orderId}`), [orderId]);
   const o = order.data;
   const live = o ? !ENDED.has(o.status) : true;
@@ -251,6 +255,13 @@ export function Tracking() {
       saveBlob(blob, `madad-receipt-${o.id}.pdf`);
     });
 
+  const cancel = () =>
+    void act.run(async () => {
+      order.set(await api.post<Order2Out>(`/api/customer/orders/${o.id}/cancel`, { reason: reason.trim() || null }));
+      setCancelling(false);
+      refresh();
+    }, "أُلغيت الطلبية.");
+
   const lastEvent = o.events[o.events.length - 1];
   const done = o.status === "delivered" || o.status === "closed";
   const canDispute = done || o.status === "partially_delivered";
@@ -284,6 +295,15 @@ export function Tracking() {
           {o.status !== "placed" ? <DriverCard order={o} /> : (
             <Note>المبلغ عند الاستلام <Money value={o.amount_due ?? o.total} /> — الدفع نقداً.</Note>
           )}
+          {o.cancellable ? null : (
+            <>
+              <div className="bg-secondary-tint rounded-md p-3 text-14 flex flex-col gap-1.5">
+                <b>لا يُلغى من التطبيق الآن.</b>
+                <span>{o.status === "placed" ? "للمساعدة تواصل معنا." : "بدأ مَدَد تجميع أصنافك. للمساعدة تواصل معنا."}</span>
+              </div>
+              <ContactButtons ctx={me.context} block />
+            </>
+          )}
         </>
       )}
 
@@ -293,7 +313,16 @@ export function Tracking() {
         {canDispute ? (
           <Link to={`/orders/${o.id}/dispute`} className="text-center text-15 font-bold text-error-text no-underline p-2.5">مشكلة في صنف؟ افتح نزاعاً</Link>
         ) : null}
+        {o.cancellable && live ? (
+          <Button block variant="danger" icon="x" disabled={act.busy} onClick={() => setCancelling(true)}>إلغاء الطلبية</Button>
+        ) : null}
       </div>
+
+      <ConfirmDialog open={cancelling} tone="error" title={<>إلغاء الطلبية <Num>#{o.id}</Num>؟</>}
+        body="تُلغى الطلبية كلها ولا يُحصَّل منك شيء. السبب اختياري ويصل فريق مَدَد."
+        confirmLabel="إلغاء الطلبية" cancelLabel="رجوع" loading={act.busy} onConfirm={cancel} onCancel={() => setCancelling(false)}>
+        <TextField label="السبب (اختياري)" value={reason} onChange={setReason} placeholder="مثال: طلبنا من مكان آخر" />
+      </ConfirmDialog>
     </Screen>
   );
 }

@@ -1,5 +1,1 @@
-{
-  "POST /api/customer/catalog/{catalog_item_id}/alert": "بانتظار اعتماد تصميم «إضافات 27/09 (6)» — «نبّهني حين يتوفر» وحالته بعد الطلب",
-  "DELETE /api/customer/catalog/{catalog_item_id}/alert": "بانتظار اعتماد تصميم «إضافات 27/09 (6)» — إلغاء التنبيه",
-  "POST /api/customer/orders/{order_id}/cancel": "بانتظار اعتماد تصميم «إضافات 27/09 (6)» — زر الإلغاء وحواره وحالة اختفائه"
-}
+{}

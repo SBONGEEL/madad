@@ -13,8 +13,8 @@ from tests.db.test_isolation import FORBIDDEN_COLUMNS
 EXPECTED_OPERATIONS = {
     "customer": 37,   # me · categories · catalog · orders · order · receipt.pdf
     "supplier": 22,   # me · pickups · scan · slip.pdf
-    "driver": 28,     # me · orders · order · code · sheet.pdf
-    "admin": 94,      # visibility (قراءة/كتابة) · capital (قراءة/كتابة) · order costs · me
+    "driver": 29,     # me · orders · order · code · sheet.pdf
+    "admin": 106,      # visibility (قراءة/كتابة) · capital (قراءة/كتابة) · order costs · me
     "auth": 10,       # register start/verify/complete · login · refresh · logout
 }
 

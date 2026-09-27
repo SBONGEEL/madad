@@ -1,11 +1,12 @@
-/** الإسناد: طلبية مؤكَّدة مخططها مكتمل ← سائق متاح (مع طول المسار لأجر المعادلة)، وفكّ الإسناد قبل بدء الجمع. */
+/** الإسناد: طلبية مؤكَّدة مخططها مكتمل ← سائق متاح (مع طول المسار لأجر المعادلة)، وفكّ الإسناد قبل بدء الجمع.
+ * السائق غير المتاح (§12-ط) يُسند إليه يدوياً بعد تحذير، ويصله تنبيه بالطلبية. */
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { qs } from "@ui/client";
 import * as fmt from "@ui/fmt";
 import {
-  Button, ConfirmDialog, DataTable, EmptyState, Icon, Money, Note, Num, OrderStatusBadge, PageHead, Section, StatusBadge, TextField,
+  Button, ConfirmDialog, DataTable, Dialog, EmptyState, Icon, Money, Note, Num, OrderStatusBadge, PageHead, Section, StatusBadge, TextField,
   useAction, useLoad,
 } from "@ui/kit";
 import { api } from "@/api/client";
@@ -26,6 +27,7 @@ export function Assign() {
   const plan = useLoad(() => (id ? api.get<PlanOut>(`/api/admin/orders/${id}/plan`) : Promise.resolve(null)), [id]);
   const act = useAction();
   const [pick, setPick] = useState<DriverChoiceOut | null>(null);
+  const [warn, setWarn] = useState<DriverChoiceOut | null>(null);
   const [km, setKm] = useState("");
   const [unassign, setUnassign] = useState(false);
 
@@ -51,6 +53,12 @@ export function Assign() {
     if (v) { refresh(v); setPick(null); setKm(""); }
   }
 
+  function openAssign(d: DriverChoiceOut) {
+    setWarn(null);
+    setPick(d);
+    setKm(detail.data?.route_km ? fmt.qty(detail.data.route_km) : "");
+  }
+
   async function doUnassign() {
     if (!id) return;
     const v = await act.run(() => api.post<OrderDetailOut>(`/api/admin/orders/${id}/unassign`), "فُكّ الإسناد وعادت الطلبية مؤكَّدة");
@@ -59,6 +67,7 @@ export function Assign() {
 
   function driverState(d: DriverChoiceOut) {
     if (d.over_cap) return <StatusBadge tone="error">فوق السقف</StatusBadge>;
+    if (!d.accepting) return <StatusBadge tone="warning">غير متاح</StatusBadge>;
     if (d.active_orders > 0) return <StatusBadge tone="neutral">في طلبية</StatusBadge>;
     return <StatusBadge tone="success">متاح</StatusBadge>;
   }
@@ -82,7 +91,7 @@ export function Assign() {
           <DataTable<DriverChoiceOut>
             rows={drivers.data} loading={drivers.loading} error={drivers.error} onRetry={drivers.reload}
             emptyIcon="truck" emptyTitle="لا سائق متاح الآن" emptyBody="الطلبية ظاهرة للسائقين في طرابلس؛ يقبلها أول متاح أو تُسند يدوياً لاحقاً."
-            rowKey={(d) => d.id} rowTone={(d) => d.over_cap && "error"}
+            rowKey={(d) => d.id} rowTone={(d) => (d.over_cap ? "error" : !d.accepting && "warning")}
             columns={[
               { key: "full_name", label: "السائق" },
               { key: "vehicle", label: "المركبة", render: (d) => <>{VEHICLE[d.vehicle] ?? d.vehicle}{d.capacity_kg ? <> · <Num>{fmt.qty(d.capacity_kg)} كغ</Num></> : null}</> },
@@ -93,10 +102,15 @@ export function Assign() {
                 key: "a", label: "", render: (d) => (
                   <Button size="sm" disabled={!canAssign || d.over_cap || d.active_orders > 0}
                     title={d.over_cap ? "السائق تجاوز سقف الكاش. سجّل تسليم الكاش أولاً." : undefined}
-                    onClick={() => { setPick(d); setKm(detail.data?.route_km ? fmt.qty(detail.data.route_km) : ""); }}>إسناد</Button>
+                    onClick={() => (d.accepting ? openAssign(d) : setWarn(d))}>إسناد</Button>
                 ),
               },
             ]} />
+          {drivers.data?.some((d) => !d.accepting) ? (
+            <Note tone="info">
+              <b>غير متاح</b>: السائق أوقف «أستقبل طلبيات الآن». لا تُعرض عليه طلبيات ولا يُسند إليه تلقائياً، ويبقى الإسناد اليدوي ممكناً مع تنبيه.
+            </Note>
+          ) : null}
         </section>
 
         <section className="flex flex-col gap-3">
@@ -131,6 +145,16 @@ export function Assign() {
         <TextField label="طول المسار" value={km} onChange={setKm} numeric suffix="كم" required autoFocus
           error={km && !KM.test(km.trim()) ? "رقم بخانتين عشريتين على الأكثر" : null} />
       </ConfirmDialog>
+
+      <Dialog open={!!warn} onClose={() => setWarn(null)} label="سائق غير متاح">
+        <div className="md-dialog-ico md-tone-bg-warning"><Icon name="triangle-alert" size={22} /></div>
+        <div className="md-dialog-title">{warn?.full_name} غير متاح الآن</div>
+        <div className="md-dialog-body">أوقف استقبال الطلبيات. إن أسندت إليه الطلبية <Num>#{id}</Num> يدوياً يصله تنبيه بها.</div>
+        <div className="md-dialog-actions">
+          <Button block icon="send" onClick={() => warn && openAssign(warn)}>إسناد رغم ذلك مع تنبيه</Button>
+          <Button block variant="secondary" onClick={() => setWarn(null)}>اختيار سائق آخر</Button>
+        </div>
+      </Dialog>
 
       <ConfirmDialog open={unassign} tone="warning" title={<>فكّ إسناد الطلبية <Num>#{id}</Num>؟</>}
         body={<>تعود الطلبية مؤكَّدة بلا سائق ({o?.driver_name}).</>} confirmLabel="فكّ الإسناد" loading={act.busy}

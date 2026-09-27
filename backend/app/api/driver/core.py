@@ -96,11 +96,14 @@ async def wallet(request: Request, p: Principal = Depends(driver_user)) -> Walle
         d = await driver(t, p.user_id)
         b = await t.one("SELECT cash_held, wage_due FROM driver_own_balances()")
         cap = await t.val("SELECT driver_cash_cap FROM city_settings WHERE city = :c", c=d["city"])
+        nxt = await t.one("SELECT driver_next_payout(:d) AS nxt, driver_payout_cycle(:d)::text AS cycle", d=d["id"])
     handover = max(b["cash_held"] - b["wage_due"], 0) if d["pay_method"] == "offset_on_settlement" else b["cash_held"]
-    rule = {"offset_on_settlement": "at_next_handover", "periodic": "pending_decision"}.get(d["pay_method"] or "")
+    rule = {"offset_on_settlement": "at_next_handover",
+            "periodic": "periodic" if nxt["nxt"] else "pending_decision"}.get(d["pay_method"] or "")
     return WalletOut(cash_held=b["cash_held"], cash_cap=cap, over_cap=cap is not None and b["cash_held"] > cap,
                      wage_due=b["wage_due"], pay_method=d["pay_method"], handover_due=handover,
-                     next_payout_on=None, next_payout_rule=rule)
+                     next_payout_on=nxt["nxt"], next_payout_rule=rule,
+                     payout_cycle=nxt["cycle"] if d["pay_method"] == "periodic" else None)
 
 
 def _month(month: str | None) -> date:
